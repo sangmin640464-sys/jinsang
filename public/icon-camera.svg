@@ -1,0 +1,27 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg_camera" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#4c1d95" />
+      <stop offset="0.5" stopColor="#7c3aed" />
+      <stop offset="1" stopColor="#db2777" />
+    </linearGradient>
+    <linearGradient id="lens_reflect" x1="35" y1="35" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#38bdf8" />
+      <stop offset="0.5" stopColor="#818cf8" />
+      <stop offset="1" stopColor="#c084fc" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="28" fill="url(#bg_camera)" />
+  <circle cx="25" cy="30" r="1.5" fill="#fde047" />
+  <circle cx="95" cy="26" r="2" fill="#fde047" />
+  <circle cx="85" cy="40" r="1" fill="#ffffff" />
+  <polygon points="32,22 34,26 38,28 34,30 32,34 30,30 26,28 30,26" fill="#fef08a" opacity="0.8" />
+  <path d="M32 44C32 40 35 37 39 37H46L50 33H70L74 37H81C85 37 88 40 88 44V78C88 82 85 85 81 85H39C35 85 32 82 32 78V44Z" fill="white" />
+  <circle cx="42" cy="45" r="3" fill="#f59e0b" />
+  <circle cx="60" cy="61" r="21" fill="#1e1b4b" />
+  <circle cx="60" cy="61" r="18" fill="url(#lens_reflect)" />
+  <path d="M52 69 V61 L54 60 L56 61 V69 H58 V58 L60 55 L62 58 V69 H64 V61 L66 60 L68 61 V69 Z" fill="#ffffff" />
+  <circle cx="67" cy="54" r="2.5" fill="#ffffff" opacity="0.9" />
+  <rect x="36" y="93" width="48" height="15" rx="7.5" fill="#ffffff" fillOpacity="0.2" />
+  <text x="60" y="104" text-anchor="middle" fill="#ffffff" font-size="9" font-weight="900" letter-spacing="0.8" fontFamily="sans-serif">진장 2026</text>
+</svg>

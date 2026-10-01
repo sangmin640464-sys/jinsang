@@ -6,7 +6,7 @@ import {
   ArrowUpRight, Users, Navigation, ShieldCheck, Clock, MapPin,
   ChevronRight, CheckCircle2, MessageSquareText, UserCog, Hotel, Hospital, UploadCloud,
   Crown, BookOpen, AlertTriangle, Bell, LogOut, Bus, Home, UserX,
-  KeyRound, Download, ExternalLink, Camera, Eye, EyeOff
+  KeyRound, Download, ExternalLink, Camera, Eye, EyeOff, Search, Palette, Check, RefreshCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { INITIAL_STUDENTS, StudentInfo } from './data/studentsData';
@@ -14,6 +14,7 @@ import { TEACHERS, ITINERARY, EMERGENCY_CONTACTS, TeacherInfo } from './data/tri
 import { OPEN_KAKAO_URL } from './data/mapImages';
 import { AuthCodeModal } from './components/AuthCodeModal';
 import { StudentGuideView } from './components/StudentGuideView';
+import { AppIconModal } from './components/AppIconModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -27,6 +28,10 @@ export default function App() {
   const [teacherAuthCode, setTeacherAuthCode] = useState<string>('2026');
   const [authCodeModalOpen, setAuthCodeModalOpen] = useState(false);
 
+  // App Icon Preview & Selection
+  const [appIconModalOpen, setAppIconModalOpen] = useState(false);
+  const [selectedIconId, setSelectedIconId] = useState<string>('compass');
+
   // Students roster state (140 students)
   const [students, setStudents] = useState<StudentInfo[]>(INITIAL_STUDENTS);
 
@@ -36,7 +41,7 @@ export default function App() {
     { id: 2, text: '[안전] 이동 중 안전벨트 필수 착용, 일행을 놓쳤을 때는 즉시 제자리에 멈춰 담임선생님께 전화하세요.', time: '08:30' }
   ]);
 
-  // Load teacher auth code & persisted students from localStorage
+  // Load teacher auth code, persisted students & app icon from localStorage
   useEffect(() => {
     try {
       const savedAuthCode = localStorage.getItem('jj_teacher_auth_code');
@@ -46,10 +51,40 @@ export default function App() {
       if (savedStudents) {
         setStudents(JSON.parse(savedStudents));
       }
+
+      const savedIconId = localStorage.getItem('jj_app_icon_id');
+      if (savedIconId) {
+        setSelectedIconId(savedIconId);
+        updateFaviconDom(savedIconId);
+      }
     } catch (e) {
       console.error(e);
     }
   }, []);
+
+  const updateFaviconDom = (iconId: string) => {
+    try {
+      const link = (document.querySelector("link[rel*='icon']") || document.createElement('link')) as HTMLLinkElement;
+      link.type = 'image/svg+xml';
+      link.rel = 'icon';
+      if (iconId === 'bus') {
+        link.href = '/icon-bus.svg';
+      } else if (iconId === 'camera') {
+        link.href = '/icon-camera.svg';
+      } else {
+        link.href = '/favicon.svg';
+      }
+      document.head.appendChild(link);
+    } catch (e) {}
+  };
+
+  const handleSelectIcon = (iconId: string) => {
+    setSelectedIconId(iconId);
+    try {
+      localStorage.setItem('jj_app_icon_id', iconId);
+      updateFaviconDom(iconId);
+    } catch (e) {}
+  };
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -109,12 +144,22 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <LoginScreen
-        onLogin={handleLogin}
-        teacherAuthCode={teacherAuthCode}
-        students={students}
-        triggerToast={triggerToast}
-      />
+      <>
+        <LoginScreen
+          onLogin={handleLogin}
+          teacherAuthCode={teacherAuthCode}
+          students={students}
+          triggerToast={triggerToast}
+          onOpenIconModal={() => setAppIconModalOpen(true)}
+        />
+        <AppIconModal
+          isOpen={appIconModalOpen}
+          onClose={() => setAppIconModalOpen(false)}
+          selectedIconId={selectedIconId}
+          onSelectIcon={handleSelectIcon}
+          triggerToast={triggerToast}
+        />
+      </>
     );
   }
 
@@ -346,6 +391,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* Quick App Icon Preview */}
+            <button
+              onClick={() => setAppIconModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 flex items-center space-x-1.5 transition-all shadow-xs"
+              title="앱 아이콘 3종 미리보기 & 선택"
+            >
+              <Palette className="w-3.5 h-3.5 text-blue-600" />
+              <span className="hidden sm:inline">아이콘 변경</span>
+            </button>
+
             {/* Quick Broadcast button for teachers */}
             {!isStudent && (
               <button
@@ -587,6 +642,15 @@ export default function App() {
         onResetCode={handleResetAuthCode}
       />
 
+      {/* App Icon Selection Modal */}
+      <AppIconModal
+        isOpen={appIconModalOpen}
+        onClose={() => setAppIconModalOpen(false)}
+        selectedIconId={selectedIconId}
+        onSelectIcon={handleSelectIcon}
+        triggerToast={triggerToast}
+      />
+
       {/* Toast Notification */}
       <div
         className={`fixed bottom-14 sm:bottom-6 right-4 sm:right-6 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-soft flex items-center space-x-2.5 transform transition-all duration-300 z-50 text-xs ${
@@ -603,7 +667,7 @@ export default function App() {
 /* =========================================================================
    1. LOGIN SCREEN (교사 / 학생 로그인 + 교사 인증코드 & 총괄 지원)
    ========================================================================= */
-const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
+const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenIconModal }) => {
   const [loginMode, setLoginMode] = useState<'teacher' | 'student'>('teacher');
 
   // Teacher Login States
@@ -930,6 +994,18 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
             </button>
           </form>
         )}
+
+        {/* App Icon 3-Design Preview Button */}
+        <div className="pt-3 text-center border-t border-white/10">
+          <button
+            type="button"
+            onClick={onOpenIconModal}
+            className="text-xs text-indigo-200 hover:text-white inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all font-medium"
+          >
+            <Palette className="w-3.5 h-3.5 text-amber-300" />
+            <span>🎨 앱 아이콘 3가지 디자인 미리보기 & 선택</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1156,18 +1232,28 @@ const AttendanceTab = ({ currentUser, students, onPersistStudents, triggerToast 
   const participating = targetStudents.filter((s) => s.is_participating);
   const nonParticipatingCount = targetStudents.length - participating.length;
   const boardedCount = participating.filter((s) => s.bus_status).length;
+  const boardingRate = participating.length > 0 ? Math.round((boardedCount / participating.length) * 100) : 0;
 
   const handleToggleBoarding = (id: number) => {
-    const updated = students.map((s) => (s.id === id ? { ...s, bus_status: !s.bus_status } : s));
+    const target = students.find((s) => s.id === id);
+    const nextStatus = !target?.bus_status;
+    const updated = students.map((s) => (s.id === id ? { ...s, bus_status: nextStatus } : s));
     onPersistStudents(updated);
+    triggerToast(
+      nextStatus
+        ? `[${target?.name}] 탑승 완료 처리되었습니다.`
+        : `[${target?.name}] 탑승 취소 처리되었습니다.`
+    );
   };
 
   const handleToggleParticipating = (id: number) => {
+    const target = students.find((s) => s.id === id);
+    const nextPart = !target?.is_participating;
     const updated = students.map((s) =>
-      s.id === id ? { ...s, is_participating: !s.is_participating, bus_status: false } : s
+      s.id === id ? { ...s, is_participating: nextPart, bus_status: false } : s
     );
     onPersistStudents(updated);
-    triggerToast('참가/불참 상태가 변경되었습니다.');
+    triggerToast(`[${target?.name}] ${nextPart ? '참가 상태로 전환되었습니다.' : '불참(잔류) 상태로 제외되었습니다.'}`);
   };
 
   const handleMarkAllBoarded = () => {
@@ -1180,6 +1266,22 @@ const AttendanceTab = ({ currentUser, students, onPersistStudents, triggerToast 
       filterClass === 'all'
         ? '전체 참가 학생이 일괄 탑승 완료 처리되었습니다.'
         : `${filterClass}반 전체 학생이 일괄 탑승 완료 처리되었습니다.`
+    );
+  };
+
+  const handleResetBoarding = () => {
+    if (!window.confirm(filterClass === 'all' ? '전체 학생의 탑승 상태를 미탑승으로 초기화하시겠습니까?' : `${filterClass}반 학생의 탑승 상태를 초기화하시겠습니까?`)) {
+      return;
+    }
+    const updated = students.map((s) => {
+      const match = filterClass === 'all' || s.class_no === Number(filterClass);
+      return match ? { ...s, bus_status: false } : s;
+    });
+    onPersistStudents(updated);
+    triggerToast(
+      filterClass === 'all'
+        ? '전체 학생의 탑승 상태가 초기화되었습니다.'
+        : `${filterClass}반 학생의 탑승 상태가 초기화되었습니다.`
     );
   };
 
@@ -1210,49 +1312,57 @@ const AttendanceTab = ({ currentUser, students, onPersistStudents, triggerToast 
         <div>
           <h3 className="text-base font-black text-slate-900 flex items-center space-x-2">
             <Bus className="w-5 h-5 text-blue-600" />
-            <span>{isHead ? '전체 출석 및 탑승 관리 (총괄)' : `2학년 ${currentUser.myClass}반 탑승 관리`}</span>
+            <span>{isHead ? '전체 출석 및 탑승 관리 (총괄)' : `2학년 ${filterClass === 'all' ? '전체' : filterClass + '반'} 탑승 관리`}</span>
           </h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            학생 스스로 보고한 스마트 탑승 상태가 실시간으로 연동되어 표시됩니다.
+            학생 스마트 가이드의 탑승 보고와 실시간 연동되며, 인솔 교사가 즉시 체크할 수 있습니다.
           </p>
         </div>
 
         <div className="flex items-center space-x-2 flex-wrap gap-2 w-full md:w-auto">
-          {isHead && (
-            <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
+          {/* Class Filter for all teachers */}
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
+            <button
+              onClick={() => setFilterClass('all')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                filterClass === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              전체
+            </button>
+            {[1, 2, 3, 4, 5, 6].map((n) => (
               <button
-                onClick={() => setFilterClass('all')}
+                key={n}
+                onClick={() => setFilterClass(n)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                  filterClass === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  filterClass === n ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                전체
+                {n}반
               </button>
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setFilterClass(n)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    filterClass === n ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {n}반
-                </button>
-              ))}
-            </div>
-          )}
+            ))}
+          </div>
 
           <button
             onClick={handleMarkAllBoarded}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center space-x-1.5"
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center space-x-1.5"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>일괄 탑승 처리</span>
+            <span>일괄 탑승</span>
+          </button>
+
+          <button
+            onClick={handleResetBoarding}
+            className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center space-x-1"
+            title="탑승 상태 초기화"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">초기화</span>
           </button>
 
           <button
             onClick={handleExportExcel}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center space-x-1"
+            className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all flex items-center space-x-1"
             title="엑셀 다운로드"
           >
             <Download className="w-3.5 h-3.5" />
@@ -1262,34 +1372,34 @@ const AttendanceTab = ({ currentUser, students, onPersistStudents, triggerToast 
       </div>
 
       {/* Mini Stats */}
-      <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-center text-xs">
         <div className="clean-card p-3">
-          <p className="text-lg sm:text-xl font-black text-slate-800">{targetStudents.length}</p>
-          <p className="text-[10px] text-slate-500 font-bold">총 명부</p>
+          <p className="text-lg sm:text-xl font-black text-slate-800">{targetStudents.length}명</p>
+          <p className="text-[10px] text-slate-500 font-bold">선택 학급 명부</p>
         </div>
         <div className="clean-card p-3 bg-slate-50">
-          <p className="text-lg sm:text-xl font-black text-slate-400">{nonParticipatingCount}</p>
+          <p className="text-lg sm:text-xl font-black text-slate-400">{nonParticipatingCount}명</p>
           <p className="text-[10px] text-slate-500 font-bold">불참(잔류)</p>
         </div>
         <div className="clean-card p-3 bg-emerald-50 border-emerald-200">
-          <p className="text-lg sm:text-xl font-black text-emerald-600">{boardedCount}</p>
-          <p className="text-[10px] text-emerald-700 font-bold">탑승 완료</p>
+          <p className="text-lg sm:text-xl font-black text-emerald-600">{boardedCount} / {participating.length}명</p>
+          <p className="text-[10px] text-emerald-700 font-bold">탑승 완료 ({boardingRate}%)</p>
         </div>
         <div className="clean-card p-3 bg-red-50 border-red-200">
-          <p className="text-lg sm:text-xl font-black text-red-500">{participating.length - boardedCount}</p>
-          <p className="text-[10px] text-red-700 font-bold">미탑승</p>
+          <p className="text-lg sm:text-xl font-black text-red-500">{participating.length - boardedCount}명</p>
+          <p className="text-[10px] text-red-700 font-bold">미탑승 인원</p>
         </div>
       </div>
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+        <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
         <input
           type="search"
           value={searchWord}
           onChange={(e) => setSearchWord(e.target.value)}
-          placeholder="학생 이름 또는 학번 검색..."
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white"
+          placeholder="학생 이름 또는 학번 검색 (예: 김규빈, 2113)..."
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:outline-hidden focus:border-blue-500"
         />
       </div>
 
@@ -1302,26 +1412,29 @@ const AttendanceTab = ({ currentUser, students, onPersistStudents, triggerToast 
                 <th className="px-4 py-3">학급</th>
                 <th className="px-3 py-3">번호</th>
                 <th className="px-4 py-3">성명</th>
+                <th className="px-3 py-3 text-center">호차</th>
                 <th className="px-3 py-3 text-center">참여 상태</th>
-                <th className="px-4 py-3 text-center">실시간 탑승</th>
+                <th className="px-4 py-3 text-center">실시간 탑승 상태</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {targetStudents.map((st) => (
-                <tr key={st.id} className={!st.is_participating ? 'bg-slate-50/60 opacity-60' : ''}>
+                <tr key={st.id} className={!st.is_participating ? 'bg-slate-50/60 opacity-60' : st.bus_status ? 'bg-emerald-50/20' : ''}>
                   <td className="px-4 py-2.5 font-bold text-slate-900 whitespace-nowrap">
                     2-{st.class_no}반
                   </td>
                   <td className="px-3 py-2.5 font-mono text-slate-500">{st.student_no}</td>
-                  <td className="px-4 py-2.5 font-bold whitespace-nowrap">{st.name}</td>
+                  <td className="px-4 py-2.5 font-bold whitespace-nowrap text-slate-900">{st.name}</td>
+                  <td className="px-3 py-2.5 text-center font-bold text-blue-600">{st.bus_no}호차</td>
                   <td className="px-3 py-2.5 text-center">
                     <button
                       onClick={() => handleToggleParticipating(st.id)}
                       className={`text-[10px] font-black px-2 py-1 rounded-md transition-all ${
                         st.is_participating
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-slate-100 text-slate-500'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
+                      title="클릭하여 참가/불참 전환"
                     >
                       {st.is_participating ? '참여' : '불참'}
                     </button>
@@ -1330,16 +1443,16 @@ const AttendanceTab = ({ currentUser, students, onPersistStudents, triggerToast 
                     {st.is_participating ? (
                       <button
                         onClick={() => handleToggleBoarding(st.id)}
-                        className={`text-[11px] font-black px-3 py-1.5 rounded-xl transition-all shadow-xs ${
+                        className={`text-[11px] font-black px-3.5 py-1.5 rounded-xl transition-all shadow-xs ${
                           st.bus_status
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
                         }`}
                       >
-                        {st.bus_status ? '✓ 탑승완료' : '미탑승 (체크)'}
+                        {st.bus_status ? '✓ 탑승 완료' : '미탑승 (체크하기)'}
                       </button>
                     ) : (
-                      <span className="text-[10px] text-slate-400 font-bold">제외됨</span>
+                      <span className="text-[10px] text-slate-400 font-bold">잔류 (불참)</span>
                     )}
                   </td>
                 </tr>
@@ -1362,19 +1475,47 @@ const ClassesControlTab = ({ currentUser, students, onPersistStudents, triggerTo
     triggerToast(`2학년 ${classNum}반 학생이 전원 탑승 완료 처리되었습니다.`);
   };
 
+  const handleBoardAllSchool = () => {
+    const updated = students.map((s) => (s.is_participating ? { ...s, bus_status: true } : s));
+    onPersistStudents(updated);
+    triggerToast('전체 6개 학급 참가 학생이 전원 탑승 완료 처리되었습니다.');
+  };
+
+  const handleResetAllSchool = () => {
+    if (!window.confirm('전체 6개 학급의 탑승 상태를 미탑승으로 초기화하시겠습니까?')) return;
+    const updated = students.map((s) => ({ ...s, bus_status: false }));
+    onPersistStudents(updated);
+    triggerToast('전체 6개 학급 탑승 상태가 초기화되었습니다.');
+  };
+
   return (
     <div className="space-y-5">
-      <div className="clean-card p-5 bg-gradient-to-r from-amber-500 to-indigo-900 text-white rounded-3xl flex items-center justify-between">
+      <div className="clean-card p-5 bg-gradient-to-r from-amber-500 to-indigo-900 text-white rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <span className="text-[10px] bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded-md">
-            총괄 관제
+            총괄 관제소
           </span>
-          <h3 className="text-lg font-black mt-1">전 학급(1~6반) 버스 탑승 종합 관제소</h3>
+          <h3 className="text-lg font-black mt-1">전 학급(1~6반) 버스 탑승 종합 관제</h3>
           <p className="text-xs text-amber-200">
             총괄 책임자: 김동욱 교감 · 조기호 학년부장
           </p>
         </div>
-        <UsersRound className="w-8 h-8 text-amber-300 opacity-80" />
+        <div className="flex items-center space-x-2 flex-wrap">
+          <button
+            onClick={handleBoardAllSchool}
+            className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-amber-950 rounded-xl text-xs font-black shadow-md transition-all flex items-center space-x-1"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>전 학년 일괄 탑승</span>
+          </button>
+          <button
+            onClick={handleResetAllSchool}
+            className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>전체 초기화</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
