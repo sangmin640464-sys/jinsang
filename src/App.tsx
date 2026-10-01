@@ -11,7 +11,7 @@ import {
 import * as XLSX from 'xlsx';
 import { INITIAL_STUDENTS, StudentInfo } from './data/studentsData';
 import { TEACHERS, ITINERARY, EMERGENCY_CONTACTS, TeacherInfo } from './data/tripData';
-import { OPEN_KAKAO_URL } from './data/mapImages';
+import { OPEN_KAKAO_URL, TRIP_PHOTOS } from './data/mapImages';
 import { AuthCodeModal } from './components/AuthCodeModal';
 import { StudentGuideView } from './components/StudentGuideView';
 import { AppIconModal } from './components/AppIconModal';
@@ -1584,25 +1584,90 @@ const ClassesControlTab = ({ currentUser, students, onPersistStudents, triggerTo
    5. SCHEDULE & TIMELINE TAB
    ========================================================================= */
 const ScheduleTab = () => {
+  const [selectedDay, setSelectedDay] = useState<number | 'all'>('all');
+
+  const displayedDays = selectedDay === 'all' ? ITINERARY : ITINERARY.filter((d) => d.day === selectedDay);
+
   return (
     <div className="space-y-6">
       <div className="clean-card p-5 space-y-4">
-        <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
-          <CalendarRange className="w-5 h-5 text-blue-600" />
-          <span>수학여행 2박 3일 마스터 타임라인</span>
-        </h3>
-        <p className="text-xs text-slate-500">
-          2026학년도 진장중학교 2학년 수학여행 세부운영 계획에 따른 전체 일정입니다.
-        </p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
+              <CalendarRange className="w-5 h-5 text-blue-600" />
+              <span>수학여행 2박 3일 마스터 타임라인</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              2026학년도 진장중학교 2학년 수학여행 세부운영 계획에 따른 전체 일정입니다.
+            </p>
+          </div>
 
-        {ITINERARY.map((day) => (
+          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1">
+            <button
+              onClick={() => setSelectedDay('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                selectedDay === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              전체
+            </button>
+            <button
+              onClick={() => setSelectedDay(1)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                selectedDay === 1 ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              1일차 (10.14)
+            </button>
+            <button
+              onClick={() => setSelectedDay(2)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                selectedDay === 2 ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              2일차 (10.15)
+            </button>
+            <button
+              onClick={() => setSelectedDay(3)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                selectedDay === 3 ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              3일차 (10.16)
+            </button>
+          </div>
+        </div>
+
+        {displayedDays.map((day) => (
           <div key={day.day} className="border-t border-slate-100 pt-4 space-y-3">
-            <div className="flex items-center space-x-2">
-              <span className="px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-xs font-black">
-                {day.date}
-              </span>
-              <h4 className="font-black text-sm text-slate-800">{day.title}</h4>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-xs font-black">
+                  {day.date} ({day.day}일차)
+                </span>
+                <h4 className="font-black text-sm text-slate-800">{day.title}</h4>
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">{day.route}</span>
             </div>
+
+            {/* Photos in Master schedule */}
+            {day.day === 1 && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <img src={TRIP_PHOTOS.gyeongbok[0].url} alt="경복궁" className="h-28 w-full object-cover rounded-xl" />
+                <img src={TRIP_PHOTOS.seodaemun[0].url} alt="서대문형무소" className="h-28 w-full object-cover rounded-xl" />
+              </div>
+            )}
+            {day.day === 2 && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <img src={TRIP_PHOTOS.lotte[0].url} alt="롯데월드 매직캐슬" className="h-28 w-full object-cover rounded-xl" />
+                <img src={TRIP_PHOTOS.lotte[1].url} alt="롯데월드 어드벤처" className="h-28 w-full object-cover rounded-xl" />
+              </div>
+            )}
+            {day.day === 3 && (
+              <div className="max-w-xs pt-1">
+                <img src={TRIP_PHOTOS.science[0].url} alt="국립과천과학관" className="h-28 w-full object-cover rounded-xl" />
+              </div>
+            )}
 
             <div className="border-l-2 border-slate-200 ml-2 pl-3.5 space-y-3 text-xs">
               {day.events.map((ev, idx) => (
