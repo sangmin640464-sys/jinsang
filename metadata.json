@@ -1,0 +1,8 @@
+{
+  "name": "진장중학교 수학여행 스마트 관리 시스템",
+  "description": "진장중학교 수학여행 스마트 인솔 및 관리 시스템 (출석 체크, 탑승 현황, 타임라인, 비상 연락망, AI 알림장)",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
