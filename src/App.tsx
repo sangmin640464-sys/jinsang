@@ -11,7 +11,7 @@ import {
 import * as XLSX from 'xlsx';
 import { INITIAL_STUDENTS, StudentInfo } from './data/studentsData';
 import { TEACHERS, ITINERARY, EMERGENCY_CONTACTS, TeacherInfo } from './data/tripData';
-import { OPEN_KAKAO_URL, TRIP_PHOTOS } from './data/mapImages';
+import { OPEN_KAKAO_URL } from './data/mapImages';
 import { AuthCodeModal } from './components/AuthCodeModal';
 import { StudentGuideView } from './components/StudentGuideView';
 import { AppIconModal } from './components/AppIconModal';
@@ -41,7 +41,7 @@ export default function App() {
     { id: 2, text: '[안전] 이동 중 안전벨트 필수 착용, 일행을 놓쳤을 때는 즉시 제자리에 멈춰 담임선생님께 전화하세요.', time: '08:30' }
   ]);
 
-  // Load teacher auth code, persisted students & app icon from localStorage
+  // Load teacher auth code, persisted students, app icon & auto-login user from localStorage
   useEffect(() => {
     try {
       const savedAuthCode = localStorage.getItem('jj_teacher_auth_code');
@@ -56,6 +56,17 @@ export default function App() {
       if (savedIconId) {
         setSelectedIconId(savedIconId);
         updateFaviconDom(savedIconId);
+      }
+
+      // Auto Login Restore
+      const savedUserStr = localStorage.getItem('jj_logged_in_user_v1');
+      if (savedUserStr) {
+        const user = JSON.parse(savedUserStr);
+        if (user) {
+          setCurrentUser(user);
+          if (user.role === 'student') setActiveTab('guide');
+          else setActiveTab('dashboard');
+        }
       }
     } catch (e) {
       console.error(e);
@@ -117,6 +128,9 @@ export default function App() {
 
   const handleLogin = (user: any) => {
     setCurrentUser(user);
+    try {
+      localStorage.setItem('jj_logged_in_user_v1', JSON.stringify(user));
+    } catch (e) {}
     if (user.role === 'student') {
       setActiveTab('guide');
     } else {
@@ -127,9 +141,13 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    try {
+      localStorage.removeItem('jj_logged_in_user_v1');
+    } catch (e) {}
     setCurrentUser(null);
     setActiveTab('dashboard');
     setSidebarOpen(false);
+    triggerToast('로그아웃되었습니다.');
   };
 
   const handleBoardingToggle = (studentId: number, currentStatus: boolean) => {
@@ -169,7 +187,7 @@ export default function App() {
   // Navigation Items
   const studentNavItems = [
     { icon: <LayoutDashboard className="w-4 h-4" />, label: '수학여행 학생 안내서', tab: 'guide', badge: '학생전용' },
-    { icon: <CalendarRange className="w-4 h-4" />, label: '3일간 전체 일정표', tab: 'schedule' },
+    { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전', tab: 'emergency' },
   ];
 
@@ -178,7 +196,7 @@ export default function App() {
     { icon: <UserCheck className="w-4 h-4" />, label: isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`, tab: 'attendance' },
     ...(isHead ? [{ icon: <UsersRound className="w-4 h-4" />, label: '전 학급 탑승 종합 관제', tab: 'classes', badge: '총괄' }] : []),
     { icon: <BookOpen className="w-4 h-4" />, label: '학생 종합 안내서 조회', tab: 'guide' },
-    { icon: <CalendarRange className="w-4 h-4" />, label: '마스터 타임라인', tab: 'schedule' },
+    { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
     { icon: <Sparkles className="w-4 h-4" />, label: 'AI 안심 알림장 어시스턴트', tab: 'ai' },
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전 기관', tab: 'emergency' },
   ];
@@ -383,7 +401,7 @@ export default function App() {
                 {activeTab === 'attendance' && (isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`)}
                 {activeTab === 'classes' && '전 학급 탑승 종합 관제 (총괄)'}
                 {activeTab === 'guide' && (isStudent ? '학생 스마트 안내서' : '학생 안내서 종합 조회')}
-                {activeTab === 'schedule' && '3일간 마스터 세부 일정표'}
+                {activeTab === 'schedule' && '수학여행세부일정표'}
                 {activeTab === 'ai' && 'AI 인솔 어시스턴트'}
                 {activeTab === 'emergency' && '비상 연락망 및 안전 기관'}
               </h2>
@@ -1581,12 +1599,12 @@ const ClassesControlTab = ({ currentUser, students, onPersistStudents, triggerTo
 };
 
 /* =========================================================================
-   5. SCHEDULE & TIMELINE TAB
+   5. SCHEDULE & TIMELINE TAB (수학여행 세부일정표)
    ========================================================================= */
 const ScheduleTab = () => {
-  const [selectedDay, setSelectedDay] = useState<number | 'all'>('all');
+  const [selectedDay, setSelectedDay] = useState<number>(1);
 
-  const displayedDays = selectedDay === 'all' ? ITINERARY : ITINERARY.filter((d) => d.day === selectedDay);
+  const displayedDays = ITINERARY.filter((d) => d.day === selectedDay);
 
   return (
     <div className="space-y-6">
@@ -1595,22 +1613,14 @@ const ScheduleTab = () => {
           <div>
             <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
               <CalendarRange className="w-5 h-5 text-blue-600" />
-              <span>수학여행 2박 3일 마스터 타임라인</span>
+              <span>수학여행 세부일정표</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              2026학년도 진장중학교 2학년 수학여행 세부운영 계획에 따른 전체 일정입니다.
+              2026학년도 진장중학교 2학년 수학여행 세부운영 계획에 따른 3일간 세부 일정표입니다.
             </p>
           </div>
 
           <div className="flex items-center space-x-1.5 overflow-x-auto pb-1">
-            <button
-              onClick={() => setSelectedDay('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
-                selectedDay === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              전체
-            </button>
             <button
               onClick={() => setSelectedDay(1)}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
@@ -1649,25 +1659,6 @@ const ScheduleTab = () => {
               </div>
               <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">{day.route}</span>
             </div>
-
-            {/* Photos in Master schedule */}
-            {day.day === 1 && (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <img src={TRIP_PHOTOS.gyeongbok[0].url} alt="경복궁" className="h-28 w-full object-cover rounded-xl" />
-                <img src={TRIP_PHOTOS.seodaemun[0].url} alt="서대문형무소" className="h-28 w-full object-cover rounded-xl" />
-              </div>
-            )}
-            {day.day === 2 && (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <img src={TRIP_PHOTOS.lotte[0].url} alt="롯데월드 매직캐슬" className="h-28 w-full object-cover rounded-xl" />
-                <img src={TRIP_PHOTOS.lotte[1].url} alt="롯데월드 어드벤처" className="h-28 w-full object-cover rounded-xl" />
-              </div>
-            )}
-            {day.day === 3 && (
-              <div className="max-w-xs pt-1">
-                <img src={TRIP_PHOTOS.science[0].url} alt="국립과천과학관" className="h-28 w-full object-cover rounded-xl" />
-              </div>
-            )}
 
             <div className="border-l-2 border-slate-200 ml-2 pl-3.5 space-y-3 text-xs">
               {day.events.map((ev, idx) => (

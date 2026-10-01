@@ -7,7 +7,7 @@ import {
   Navigation, Camera, Phone, ShieldCheck, Clock, Bookmark, Info
 } from 'lucide-react';
 import { ITINERARY, LOTTE_COUPON_STORES, PREP_CHECKLIST, EMERGENCY_CONTACTS, TEACHERS } from '../data/tripData';
-import { OPEN_KAKAO_URL, TRIP_PHOTOS } from '../data/mapImages';
+import { OPEN_KAKAO_URL } from '../data/mapImages';
 
 interface StudentGuideViewProps {
   students: any[];
@@ -23,7 +23,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
   triggerToast,
 }) => {
   const [guideTab, setGuideTab] = useState('t1'); // t1~t8
-  const [scheduleDay, setScheduleDay] = useState<number | 'all'>('all');
+  const [scheduleDay, setScheduleDay] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClass, setFilterClass] = useState('all');
 
@@ -444,16 +444,6 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
           {/* Day Selector Buttons */}
           <div className="flex items-center space-x-1.5 overflow-x-auto pb-1">
             <button
-              onClick={() => setScheduleDay('all')}
-              className={`px-3 py-2 rounded-xl text-xs font-black transition-all shrink-0 ${
-                scheduleDay === 'all'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              전체 일정 보기 (3일간)
-            </button>
-            <button
               onClick={() => setScheduleDay(1)}
               className={`px-3 py-2 rounded-xl text-xs font-black transition-all shrink-0 ${
                 scheduleDay === 1
@@ -486,7 +476,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
           </div>
 
           {/* Days Content */}
-          {(scheduleDay === 'all' ? ITINERARY : ITINERARY.filter((d) => d.day === scheduleDay)).map((day) => (
+          {ITINERARY.filter((d) => d.day === scheduleDay).map((day) => (
             <div key={day.day} className="clean-card p-5 space-y-4">
               <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
@@ -498,82 +488,6 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
                   {day.day === 1 ? '서울 역사 탐방' : day.day === 2 ? '롯데월드 자율 체험' : '과학 탐구 및 울산 귀교'}
                 </span>
               </div>
-
-              {/* Day Photo Spot Highlight */}
-              {day.day === 1 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div className="relative rounded-2xl overflow-hidden h-36 bg-slate-900 shadow-sm">
-                    <img
-                      src={TRIP_PHOTOS.gyeongbok[0].url}
-                      alt="경복궁 근정전"
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
-                      <span className="text-[10px] text-amber-300 font-bold">13:00~14:00 경복궁 단체사진</span>
-                      <p className="text-xs font-bold">경복궁 근정전 및 광화문</p>
-                    </div>
-                  </div>
-                  <div className="relative rounded-2xl overflow-hidden h-36 bg-slate-900 shadow-sm">
-                    <img
-                      src={TRIP_PHOTOS.seodaemun[0].url}
-                      alt="서대문형무소 역사관"
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
-                      <span className="text-[10px] text-red-300 font-bold">14:30~15:30 경건한 역사관람</span>
-                      <p className="text-xs font-bold">서대문형무소 역사관</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {day.day === 2 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div className="relative rounded-2xl overflow-hidden h-36 bg-slate-900 shadow-sm">
-                    <img
-                      src={TRIP_PHOTOS.lotte[0].url}
-                      alt="롯데월드 매직캐슬"
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
-                      <span className="text-[10px] text-purple-300 font-bold">10:00~19:00 자율 어트랙션</span>
-                      <p className="text-xs font-bold">롯데월드 매직아일랜드 & 캐슬</p>
-                    </div>
-                  </div>
-                  <div className="relative rounded-2xl overflow-hidden h-36 bg-slate-900 shadow-sm">
-                    <img
-                      src={TRIP_PHOTOS.lotte[1].url}
-                      alt="롯데월드 어드벤처 돔"
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
-                      <span className="text-[10px] text-emerald-300 font-bold">1인 10,000원 밀쿠폰 14개소</span>
-                      <p className="text-xs font-bold">어드벤처 실내 돔 & 지정 식당가</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {day.day === 3 && (
-                <div className="pt-1">
-                  <div className="relative rounded-2xl overflow-hidden h-36 bg-slate-900 shadow-sm max-w-md">
-                    <img
-                      src={TRIP_PHOTOS.science[0].url}
-                      alt="국립과천과학관"
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
-                      <span className="text-[10px] text-blue-300 font-bold">10:30~13:00 과천과학관 및 점심식사</span>
-                      <p className="text-xs font-bold">국립과천과학관 첨단 전시관</p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Timeline list */}
               <div className="border-l-2 border-slate-200 ml-2 pl-4 space-y-4 text-xs">
@@ -850,29 +764,6 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
             </p>
           </div>
 
-          {/* Lotte World High-Res Photo Gallery */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {TRIP_PHOTOS.lotte.map((photo, idx) => (
-              <div key={idx} className="clean-card overflow-hidden shadow-sm group">
-                <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-900">
-                  <img
-                    src={photo.url}
-                    alt={photo.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-black/20 to-transparent flex flex-col justify-end p-3.5 text-white">
-                    <span className="text-[10px] font-black text-amber-300">2일차 자율 어트랙션 (10:00~19:00)</span>
-                    <h5 className="font-black text-sm">{photo.title}</h5>
-                  </div>
-                </div>
-                <div className="p-3 bg-white text-[11px] text-slate-600 font-medium leading-relaxed">
-                  {photo.caption}
-                </div>
-              </div>
-            ))}
-          </div>
-
           {/* Coupon Stores */}
           <div className="clean-card p-5 space-y-3">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
@@ -927,48 +818,6 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
             <p className="text-[11px] text-emerald-800">
               13:00~14:00 경복궁 단체사진 & 조별관람 → 14:30~15:30 서대문형무소 역사관 관람
             </p>
-          </div>
-
-          {/* Gyeongbokgung & Seodaemun Photo Gallery */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {TRIP_PHOTOS.gyeongbok.map((photo, idx) => (
-              <div key={idx} className="clean-card overflow-hidden shadow-sm group">
-                <div className="relative h-44 overflow-hidden bg-slate-900">
-                  <img
-                    src={photo.url}
-                    alt={photo.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-black/20 to-transparent flex flex-col justify-end p-3 text-white">
-                    <span className="text-[10px] font-black text-emerald-300">경복궁 단체사진 & 문화재</span>
-                    <h5 className="font-black text-xs sm:text-sm">{photo.title}</h5>
-                  </div>
-                </div>
-                <div className="p-2.5 bg-white text-[11px] text-slate-600">
-                  {photo.caption}
-                </div>
-              </div>
-            ))}
-            {TRIP_PHOTOS.seodaemun.map((photo, idx) => (
-              <div key={idx} className="clean-card overflow-hidden shadow-sm group">
-                <div className="relative h-44 overflow-hidden bg-slate-900">
-                  <img
-                    src={photo.url}
-                    alt={photo.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-black/20 to-transparent flex flex-col justify-end p-3 text-white">
-                    <span className="text-[10px] font-black text-red-300">서대문형무소 역사관</span>
-                    <h5 className="font-black text-xs sm:text-sm">{photo.title}</h5>
-                  </div>
-                </div>
-                <div className="p-2.5 bg-white text-[11px] text-slate-600">
-                  {photo.caption}
-                </div>
-              </div>
-            ))}
           </div>
 
           <div className="clean-card p-5 space-y-3">
