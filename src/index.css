@@ -20,14 +20,21 @@
 html, body {
   margin: 0;
   padding: 0;
-  max-width: 100%;
+  min-height: 100%;
+  width: 100%;
   overflow-x: hidden;
-  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background-color: #f7f6f2;
   color: #0f172a;
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
   word-break: keep-all;
+}
+
+#root {
+  min-height: 100%;
+  width: 100%;
 }
 
 .clean-card {

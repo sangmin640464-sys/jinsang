@@ -204,12 +204,20 @@ export default function App() {
   const navItems = isStudent ? studentNavItems : teacherNavItems;
 
   return (
-    <div className="min-h-full flex overflow-x-hidden bg-[#f7f6f2] font-sans antialiased text-slate-900">
+    <div className="min-h-screen flex flex-col md:flex-row bg-[#f7f6f2] font-sans antialiased text-slate-900 overflow-x-hidden">
+      {/* Mobile Backdrop for Sidebar */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 md:hidden transition-opacity"
+        />
+      )}
+
       {/* Sidebar (Desktop sticky / Mobile off-canvas drawer) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 flex flex-col justify-between transition-transform duration-300 md:static ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } shadow-lg md:shadow-none border-r border-slate-200/80`}
+        className={`fixed inset-y-0 left-0 z-50 w-72 flex flex-col justify-between transition-transform duration-300 md:static md:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } shadow-lg md:shadow-none border-r border-slate-200/80 overflow-y-auto`}
         style={{
           background: isStudent ? '#f8fafc' : isHead ? 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)' : '#ffffff',
         }}
@@ -464,7 +472,7 @@ export default function App() {
         )}
 
         {/* Tab Views Content */}
-        <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto pb-32">
           {activeTab === 'guide' && (
             <StudentGuideView
               students={students}
@@ -783,8 +791,8 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 p-6 sm:p-8 space-y-6 shadow-2xl text-white">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center p-4 py-8 overflow-y-auto">
+      <div className="w-full max-w-lg bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 p-6 sm:p-8 space-y-6 shadow-2xl text-white my-auto">
         {/* Header */}
         <div className="text-center space-y-1.5">
           <div className="inline-flex w-12 h-12 rounded-2xl bg-amber-400 text-amber-950 font-black text-xl items-center justify-center shadow-badge">
