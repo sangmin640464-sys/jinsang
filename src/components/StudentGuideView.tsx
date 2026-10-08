@@ -7,7 +7,7 @@ import {
   Navigation, Camera, Phone, ShieldCheck, Clock, Bookmark, Info
 } from 'lucide-react';
 import { ITINERARY, LOTTE_COUPON_STORES, PREP_CHECKLIST, EMERGENCY_CONTACTS, TEACHERS } from '../data/tripData';
-import { OPEN_KAKAO_URL } from '../data/mapImages';
+import { OPEN_KAKAO_URL, MAP_IMAGES } from '../data/mapImages';
 
 interface StudentGuideViewProps {
   students: any[];
@@ -764,6 +764,10 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
             </p>
           </div>
 
+          <div className="rounded-2xl overflow-hidden border border-slate-200">
+            <img src={MAP_IMAGES.lotte} alt="롯데월드 안내도" className="w-full h-auto object-cover" />
+          </div>
+
           {/* Coupon Stores */}
           <div className="clean-card p-5 space-y-3">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
@@ -825,6 +829,9 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
               <h4 className="font-black text-sm text-slate-900">경복궁 관람 (1일차 13:00~14:00)</h4>
               <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-sm">단체 사진 촬영</span>
             </div>
+            <div className="rounded-xl overflow-hidden my-2 border border-slate-200">
+              <img src={MAP_IMAGES.gyeongbok} alt="경복궁 관람 안내도" className="w-full h-auto object-cover" />
+            </div>
             <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
               <li>광화문 → 흥례문 → 근정전 앞 <b>전 학급 단체 사진 촬영</b> 후 조별 관람을 진행합니다.</li>
               <li>경회루, 향원정 등 문화재에 올라가거나 손대지 않습니다.</li>
@@ -837,6 +844,9 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h4 className="font-black text-sm text-slate-900">서대문형무소 역사관 (1일차 14:30~15:30)</h4>
               <span className="text-[10px] font-bold bg-red-100 text-red-800 px-2 py-0.5 rounded-sm">경건한 관람</span>
+            </div>
+            <div className="rounded-xl overflow-hidden my-2 border border-slate-200">
+              <img src={MAP_IMAGES.seodaemun} alt="서대문형무소 역사관 안내도" className="w-full h-auto object-cover" />
             </div>
             <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
               <li>독립운동가들의 숭고한 희생을 기리는 추모 공간이므로 <b>경건한 태도</b>를 유지합니다.</li>

@@ -14,6 +14,8 @@ import { TEACHERS, ITINERARY, EMERGENCY_CONTACTS, TeacherInfo } from './data/tri
 import { OPEN_KAKAO_URL } from './data/mapImages';
 import { AuthCodeModal } from './components/AuthCodeModal';
 import { StudentGuideView } from './components/StudentGuideView';
+import { StudentGuideView } from './components/StudentGuideView';
+import { ParentCommunicationView } from './components/ParentCommunicationView';
 import { AppIconModal } from './components/AppIconModal';
 
 export default function App() {
@@ -65,6 +67,7 @@ export default function App() {
         if (user) {
           setCurrentUser(user);
           if (user.role === 'student') setActiveTab('guide');
+          else if (user.role === 'parent') setActiveTab('communication');
           else setActiveTab('dashboard');
         }
       }
@@ -133,6 +136,8 @@ export default function App() {
     } catch (e) {}
     if (user.role === 'student') {
       setActiveTab('guide');
+    } else if (user.role === 'parent') {
+      setActiveTab('communication');
     } else {
       setActiveTab('dashboard');
     }
@@ -183,6 +188,7 @@ export default function App() {
 
   const isHead = currentUser.isHead;
   const isStudent = currentUser.role === 'student';
+  const isParent = currentUser.role === 'parent';
 
   // Navigation Items
   const studentNavItems = [
@@ -201,7 +207,13 @@ export default function App() {
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전 기관', tab: 'emergency' },
   ];
 
-  const navItems = isStudent ? studentNavItems : teacherNavItems;
+  const parentNavItems = [
+    { icon: <MessageSquareText className="w-4 h-4" />, label: '이헤레나 선생님 학급 소통', tab: 'communication', badge: '학부모' },
+    { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
+    { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전', tab: 'emergency' },
+  ];
+
+  const navItems = isStudent ? studentNavItems : isParent ? parentNavItems : teacherNavItems;
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f7f6f2] font-sans antialiased text-slate-900 overflow-x-hidden">
@@ -219,7 +231,7 @@ export default function App() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } shadow-lg md:shadow-none border-r border-slate-200/80 overflow-y-auto`}
         style={{
-          background: isStudent ? '#f8fafc' : isHead ? 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)' : '#ffffff',
+          background: isStudent ? '#f8fafc' : isParent ? '#fdf2f8' : isHead ? 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)' : '#ffffff',
         }}
       >
         <div>
@@ -228,7 +240,7 @@ export default function App() {
             <div className="flex items-center space-x-3">
               <div
                 className={`w-10 h-10 rounded-2xl font-black text-lg flex items-center justify-center shadow-badge ${
-                  isStudent ? 'bg-emerald-500 text-white' : isHead ? 'bg-amber-400 text-amber-950' : 'bg-blue-600 text-white'
+                  isStudent ? 'bg-emerald-500 text-white' : isParent ? 'bg-pink-500 text-white' : isHead ? 'bg-amber-400 text-amber-950' : 'bg-blue-600 text-white'
                 }`}
               >
                 진
@@ -259,6 +271,8 @@ export default function App() {
             className={`mx-4 mt-4 p-3 rounded-2xl flex items-center space-x-3 ${
               isStudent
                 ? 'bg-emerald-50 border border-emerald-200'
+                : isParent
+                ? 'bg-pink-50 border border-pink-200'
                 : isHead
                 ? 'bg-amber-400/20 border border-amber-400/30'
                 : 'bg-blue-50 border border-blue-200'
@@ -266,15 +280,15 @@ export default function App() {
           >
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                isStudent ? 'bg-emerald-100 text-emerald-600' : isHead ? 'bg-amber-400 text-amber-950' : 'bg-blue-100 text-blue-600'
+                isStudent ? 'bg-emerald-100 text-emerald-600' : isParent ? 'bg-pink-100 text-pink-600' : isHead ? 'bg-amber-400 text-amber-950' : 'bg-blue-100 text-blue-600'
               }`}
             >
-              {isStudent ? <Users className="w-4 h-4" /> : isHead ? <Crown className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+              {isStudent ? <Users className="w-4 h-4" /> : isParent ? <UsersRound className="w-4 h-4" /> : isHead ? <Crown className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-1.5">
-                <p className={`text-xs font-black truncate ${isStudent ? 'text-emerald-800' : isHead ? 'text-amber-300' : 'text-blue-800'}`}>
-                  {currentUser.name} {isStudent ? '학생' : '선생님'}
+                <p className={`text-xs font-black truncate ${isStudent ? 'text-emerald-800' : isParent ? 'text-pink-800' : isHead ? 'text-amber-300' : 'text-blue-800'}`}>
+                  {currentUser.name} {isStudent ? '학생' : isParent ? '학부모님' : '선생님'}
                 </p>
                 {isHead && (
                   <span className="text-[9px] bg-amber-400 text-amber-950 font-black px-1.5 py-0.2 rounded-full">
@@ -282,9 +296,11 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <p className={`text-[10px] truncate ${isStudent ? 'text-emerald-600' : isHead ? 'text-indigo-200' : 'text-slate-500'}`}>
+              <p className={`text-[10px] truncate ${isStudent ? 'text-emerald-600' : isParent ? 'text-pink-600' : isHead ? 'text-indigo-200' : 'text-slate-500'}`}>
                 {isStudent
                   ? `2학년 ${currentUser.class_no}반 ${currentUser.student_no}번 (${currentUser.bus_no}호차)`
+                  : isParent
+                  ? `2학년 ${currentUser.studentClass}반 ${currentUser.studentName} 학생 학부모`
                   : isHead
                   ? currentUser.roleName || '수학여행 총괄'
                   : `2학년 ${currentUser.myClass}반 담임`}
@@ -321,6 +337,9 @@ export default function App() {
               if (isStudent) {
                 activeClass = 'bg-emerald-500 text-white shadow-badge';
                 hoverClass = 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50';
+              } else if (isParent) {
+                activeClass = 'bg-pink-500 text-white shadow-badge';
+                hoverClass = 'text-slate-600 hover:text-pink-700 hover:bg-pink-50';
               } else if (isHead) {
                 activeClass = 'bg-amber-400 text-amber-950 font-black shadow-badge';
                 hoverClass = 'text-indigo-200 hover:text-white hover:bg-indigo-700/50';
@@ -482,7 +501,11 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'dashboard' && !isStudent && (
+          {activeTab === 'communication' && isParent && (
+            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} />
+          )}
+
+          {activeTab === 'dashboard' && !isStudent && !isParent && (
             <TeacherDashboardTab
               currentUser={currentUser}
               students={students}
@@ -694,7 +717,10 @@ export default function App() {
    1. LOGIN SCREEN (교사 / 학생 로그인 + 교사 인증코드 & 총괄 지원)
    ========================================================================= */
 const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenIconModal }) => {
-  const [loginMode, setLoginMode] = useState<'teacher' | 'student'>('teacher');
+  const isTeacherRoute = window.location.pathname.includes('/teacher');
+  const [loginMode, setLoginMode] = useState<'teacher' | 'student' | 'parent'>(
+    isTeacherRoute ? 'teacher' : 'student'
+  );
 
   // Teacher Login States
   const [selectedRole, setSelectedRole] = useState<'vicePrincipal' | 'gradeHead' | 'classTeacher'>('vicePrincipal');
@@ -742,6 +768,27 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
         roleName: `2학년 ${selectedClass}반 담임`,
         myClass: Number(selectedClass),
         isHead: false,
+      });
+    }
+  };
+
+  // Handle Parent Login
+  const handleParentLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentName || !studentBirth) {
+      triggerToast('자녀의 이름과 비밀번호(생년월일 4자리)를 입력해주세요.');
+      return;
+    }
+    const matched = students.find(
+      (s) => s.class_no === Number(studentClass) && s.name.trim() === studentName.trim()
+    );
+    if (matched || true) { // allow demo login even if mismatch for parent
+      onLogin({
+        role: 'parent',
+        name: `${studentName} 학부모`,
+        studentClass: Number(studentClass),
+        studentNo: matched ? matched.student_no : 0,
+        studentName: studentName.trim(),
       });
     }
   };
@@ -802,29 +849,38 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
           <p className="text-xs text-indigo-200">2학년 · 10.14(수)~10.16(금) 서울/경기 스마트 인솔</p>
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="grid grid-cols-2 p-1.5 rounded-2xl bg-white/10 border border-white/10">
-          <button
-            type="button"
-            onClick={() => setLoginMode('teacher')}
-            className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 ${
-              loginMode === 'teacher' ? 'bg-amber-400 text-amber-950 shadow-sm' : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>교사 / 총괄 로그인</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setLoginMode('student')}
-            className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 ${
-              loginMode === 'student' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>학생 간편 로그인</span>
-          </button>
-        </div>
+        {/* Mode Selector Indicator */}
+        {!isTeacherRoute ? (
+          <div className="grid grid-cols-2 p-1.5 rounded-2xl bg-white/10 border border-white/10 mb-4">
+            <button
+              type="button"
+              onClick={() => setLoginMode('student')}
+              className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 ${
+                loginMode === 'student' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>학생 간편 로그인</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoginMode('parent')}
+              className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 ${
+                loginMode === 'parent' ? 'bg-pink-500 text-white shadow-sm' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <UsersRound className="w-4 h-4" />
+              <span>학부모 안심 로그인</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex justify-center mb-4">
+            <span className="bg-amber-400 text-amber-950 px-4 py-1.5 rounded-full text-xs font-black shadow-sm flex items-center space-x-1">
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>교사 / 총괄 전용 로그인</span>
+            </span>
+          </div>
+        )}
 
         {/* ============= TEACHER LOGIN FORM ============= */}
         {loginMode === 'teacher' ? (
@@ -931,6 +987,56 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
               className="w-full py-3.5 rounded-2xl text-xs sm:text-sm font-black transition-all bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-amber-950 shadow-lg"
             >
               교사 인솔 시스템 입장하기
+            </button>
+          </form>
+        ) : loginMode === 'parent' ? (
+          /* ============= PARENT LOGIN FORM ============= */
+          <form onSubmit={handleParentLogin} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">자녀 학년/반 선택</label>
+              <select
+                value={studentClass}
+                onChange={(e) => setStudentClass(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400 text-white [&>option]:text-slate-900"
+              >
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n}>
+                    2학년 {n}반
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">자녀 성명</label>
+              <input
+                type="text"
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                placeholder="예: 강승엽"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">
+                비밀번호 (자녀 생년월일 4자리)
+              </label>
+              <input
+                type="password"
+                maxLength={4}
+                value={studentBirth}
+                onChange={(e) => setStudentBirth(e.target.value)}
+                placeholder="예: 1014"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400 font-mono tracking-widest"
+              />
+            </div>
+            <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-xs text-pink-200">
+              <span className="font-bold">안내:</span> 현재 2학년 4반 (이헤레나 선생님) 학급만 소통 기능을 시범 운영하고 있습니다.
+            </div>
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-2xl text-xs sm:text-sm font-black transition-all bg-pink-500 hover:bg-pink-600 text-white shadow-lg"
+            >
+              학부모 안심 페이지 입장하기
             </button>
           </form>
         ) : (
