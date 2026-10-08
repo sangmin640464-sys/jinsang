@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2, UploadCloud, Plus } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2, UploadCloud, Plus, X } from 'lucide-react';
 
 export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) => {
   const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'qa'>('notices');
   const [qaInput, setQaInput] = useState('');
   const [noticeInput, setNoticeInput] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isClass4 = currentUser.myClass === 4;
 
@@ -23,12 +24,50 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) =>
     }
   ];
 
-  const galleryImages = [
+  const [galleryImages, setGalleryImages] = useState<string[]>([
     'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=400',
     'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&q=80&w=400',
     'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=400',
     'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=400',
-  ];
+  ]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    if (files.length + galleryImages.length > 10) {
+      triggerToast('사진은 최대 10장까지만 업로드 가능합니다.');
+      return;
+    }
+
+    const newImages: string[] = [];
+    let loadedCount = 0;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          newImages.push(event.target.result as string);
+        }
+        loadedCount++;
+        if (loadedCount === files.length) {
+          setGalleryImages((prev) => [...newImages, ...prev]);
+          triggerToast(`${files.length}장의 사진이 성공적으로 업로드되었습니다!`);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setGalleryImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    triggerToast('사진이 삭제되었습니다.');
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -136,8 +175,16 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) =>
         {/* Gallery Tab */}
         {activeTab === 'gallery' && (
           <div className="space-y-6">
+            <input 
+              type="file" 
+              multiple 
+              accept="image/*" 
+              className="hidden" 
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+            />
             <div className="bg-white p-8 rounded-3xl border border-pink-100 shadow-sm border-dashed text-center space-y-3 cursor-pointer hover:bg-pink-50 transition-colors"
-                 onClick={() => triggerToast('사진 업로드 기능은 준비 중입니다.')}>
+                 onClick={() => fileInputRef.current?.click()}>
               <div className="w-14 h-14 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-2">
                 <UploadCloud className="w-6 h-6" />
               </div>
@@ -148,14 +195,16 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) =>
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                 <span className="text-sm font-bold text-slate-700">현재 업로드된 사진</span>
-                <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-md font-black">총 42장</span>
+                <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-md font-black">총 {galleryImages.length}장</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                 {galleryImages.map((src, idx) => (
                   <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group relative">
                     <img src={src} alt="학급 사진" className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2">
-                      <button className="w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm">
+                      <button 
+                        onClick={() => removeImage(idx)}
+                        className="w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm">
                         <X className="w-3 h-3" />
                       </button>
                     </div>
