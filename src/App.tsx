@@ -15,6 +15,7 @@ import { OPEN_KAKAO_URL } from './data/mapImages';
 import { AuthCodeModal } from './components/AuthCodeModal';
 import { StudentGuideView } from './components/StudentGuideView';
 import { ParentCommunicationView } from './components/ParentCommunicationView';
+import { TeacherParentCommunicationView } from './components/TeacherParentCommunicationView';
 import { AppIconModal } from './components/AppIconModal';
 
 export default function App() {
@@ -200,6 +201,7 @@ export default function App() {
     { icon: <LayoutDashboard className="w-4 h-4" />, label: isHead ? '전체 현황 대시보드' : '내 학급 대시보드', tab: 'dashboard' },
     { icon: <UserCheck className="w-4 h-4" />, label: isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`, tab: 'attendance' },
     ...(isHead ? [{ icon: <UsersRound className="w-4 h-4" />, label: '전 학급 탑승 종합 관제', tab: 'classes', badge: '총괄' }] : []),
+    { icon: <MessageSquareText className="w-4 h-4 text-pink-500" />, label: '학부모 소통 관리 (시범)', tab: 'parent_communication', badge: '신규' },
     { icon: <BookOpen className="w-4 h-4" />, label: '학생 종합 안내서 조회', tab: 'guide' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
     { icon: <Sparkles className="w-4 h-4" />, label: 'AI 안심 알림장 어시스턴트', tab: 'ai' },
@@ -530,6 +532,10 @@ export default function App() {
               onPersistStudents={persistStudents}
               triggerToast={triggerToast}
             />
+          )}
+
+          {activeTab === 'parent_communication' && !isStudent && !isParent && (
+            <TeacherParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} />
           )}
 
           {activeTab === 'schedule' && <ScheduleTab />}
