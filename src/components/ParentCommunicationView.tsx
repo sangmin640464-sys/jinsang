@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2 } from 'lucide-react';
+import { supabase } from '../utils/supabase';
 
 export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
   const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'qa'>('notices');
@@ -22,12 +23,35 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
     }
   ];
 
-  const galleryImages = [
-    'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=400',
-  ];
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [loadingGallery, setLoadingGallery] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'gallery') {
+      fetchGalleryImages();
+    }
+  }, [activeTab]);
+
+  const fetchGalleryImages = async () => {
+    setLoadingGallery(true);
+    try {
+      const { data, error } = await supabase
+        .from('class_galleries')
+        .select('image_url')
+        .eq('class_no', currentUser.studentClass)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching gallery:', error);
+      } else if (data) {
+        setGalleryImages(data.map(item => item.image_url));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingGallery(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -109,19 +133,31 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
         {activeTab === 'gallery' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-sm font-bold text-slate-700">최근 업데이트: 10.15 (목) 오후 1:30</span>
-              <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-md font-black">총 42장</span>
+              <span className="text-sm font-bold text-slate-700">실시간 사진첩</span>
+              <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-md font-black">총 {galleryImages.length}장</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-              {galleryImages.map((src, idx) => (
-                <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group cursor-pointer relative">
-                  <img src={src} alt="학급 사진" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-                    <span className="text-white text-[10px] font-bold">크게 보기</span>
+            
+            {loadingGallery ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+              </div>
+            ) : galleryImages.length === 0 ? (
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center">
+                <Camera className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 text-sm">아직 등록된 사진이 없습니다.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+                {galleryImages.map((src, idx) => (
+                  <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group cursor-pointer relative">
+                    <img src={src} alt="학급 사진" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                      <span className="text-white text-[10px] font-bold">크게 보기</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2, UploadCloud, Plus, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2, UploadCloud, Plus, X, Loader2 } from 'lucide-react';
+import { supabase } from '../utils/supabase';
 
 export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) => {
   const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'qa'>('notices');
@@ -24,49 +25,100 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) =>
     }
   ];
 
-  const [galleryImages, setGalleryImages] = useState<string[]>([
-    'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=400',
-  ]);
+  type GalleryImage = { id: string; url: string };
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [loadingGallery, setLoadingGallery] = useState(false);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    if (files.length + galleryImages.length > 10) {
-      triggerToast('사진은 최대 10장까지만 업로드 가능합니다.');
-      return;
+  useEffect(() => {
+    if (activeTab === 'gallery') {
+      fetchGalleryImages();
     }
+  }, [activeTab]);
 
-    const newImages: string[] = [];
-    let loadedCount = 0;
+  const fetchGalleryImages = async () => {
+    setLoadingGallery(true);
+    try {
+      const { data, error } = await supabase
+        .from('class_galleries')
+        .select('id, image_url')
+        .eq('class_no', currentUser.myClass)
+        .order('created_at', { ascending: false });
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          newImages.push(event.target.result as string);
-        }
-        loadedCount++;
-        if (loadedCount === files.length) {
-          setGalleryImages((prev) => [...newImages, ...prev]);
-          triggerToast(`${files.length}장의 사진이 성공적으로 업로드되었습니다!`);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-    
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      if (error) {
+        console.error('Error fetching gallery:', error);
+      } else if (data) {
+        setGalleryImages(data.map(item => ({ id: item.id, url: item.image_url })));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingGallery(false);
     }
   };
 
-  const removeImage = (indexToRemove: number) => {
-    setGalleryImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
-    triggerToast('사진이 삭제되었습니다.');
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+        const filePath = `class_${currentUser.myClass}/${fileName}`;
+
+        // Upload to Storage
+        const { error: uploadError } = await supabase.storage
+          .from('gallery_images')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        // Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('gallery_images')
+          .getPublicUrl(filePath);
+
+        // Insert into DB
+        const { error: dbError } = await supabase
+          .from('class_galleries')
+          .insert([
+            { class_no: currentUser.myClass, image_url: publicUrl }
+          ]);
+
+        if (dbError) throw dbError;
+      });
+
+      await Promise.all(uploadPromises);
+      triggerToast(`${files.length}장의 사진이 성공적으로 업로드되었습니다!`);
+      fetchGalleryImages(); // Refresh gallery
+    } catch (error) {
+      console.error('Upload failed:', error);
+      triggerToast('사진 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removeImage = async (idToRemove: string) => {
+    try {
+      const { error } = await supabase
+        .from('class_galleries')
+        .delete()
+        .eq('id', idToRemove);
+        
+      if (error) throw error;
+      
+      setGalleryImages(prev => prev.filter(img => img.id !== idToRemove));
+      triggerToast('사진이 삭제되었습니다.');
+    } catch (error) {
+      console.error('Delete failed:', error);
+      triggerToast('사진 삭제 중 오류가 발생했습니다.');
+    }
   };
 
   return (
@@ -183,13 +235,15 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) =>
               ref={fileInputRef}
               onChange={handleImageUpload}
             />
-            <div className="bg-white p-8 rounded-3xl border border-pink-100 shadow-sm border-dashed text-center space-y-3 cursor-pointer hover:bg-pink-50 transition-colors"
-                 onClick={() => fileInputRef.current?.click()}>
+            <div className={`bg-white p-8 rounded-3xl border border-pink-100 shadow-sm border-dashed text-center space-y-3 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-pink-50'}`}
+                 onClick={() => !uploading && fileInputRef.current?.click()}>
               <div className="w-14 h-14 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                <UploadCloud className="w-6 h-6" />
+                {uploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <UploadCloud className="w-6 h-6" />}
               </div>
-              <h3 className="font-black text-pink-900">학급 활동 사진 업로드</h3>
-              <p className="text-xs text-slate-500">클릭하여 스마트폰 앨범에서 사진을 선택하세요 (최대 10장)</p>
+              <h3 className="font-black text-pink-900">
+                {uploading ? '사진을 업로드하는 중입니다...' : '학급 활동 사진 업로드'}
+              </h3>
+              <p className="text-xs text-slate-500">클릭하여 스마트폰 앨범에서 사진을 선택하세요</p>
             </div>
 
             <div className="space-y-4">
@@ -197,20 +251,31 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }) =>
                 <span className="text-sm font-bold text-slate-700">현재 업로드된 사진</span>
                 <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-md font-black">총 {galleryImages.length}장</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-                {galleryImages.map((src, idx) => (
-                  <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group relative">
-                    <img src={src} alt="학급 사진" className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2">
-                      <button 
-                        onClick={() => removeImage(idx)}
-                        className="w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm">
-                        <X className="w-3 h-3" />
-                      </button>
+              
+              {loadingGallery ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                </div>
+              ) : galleryImages.length === 0 ? (
+                <div className="text-center py-10 text-slate-500 text-sm bg-slate-50 rounded-2xl border border-slate-200">
+                  아직 업로드된 사진이 없습니다.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+                  {galleryImages.map((img) => (
+                    <div key={img.id} className="aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group relative bg-slate-100">
+                      <img src={img.url} alt="학급 사진" className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => removeImage(img.id)}
+                          className="w-7 h-7 bg-red-500/90 hover:bg-red-600 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-colors shadow-sm">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
