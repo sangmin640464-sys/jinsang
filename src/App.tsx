@@ -14,7 +14,6 @@ import { TEACHERS, ITINERARY, EMERGENCY_CONTACTS, TeacherInfo } from './data/tri
 import { OPEN_KAKAO_URL } from './data/mapImages';
 import { AuthCodeModal } from './components/AuthCodeModal';
 import { StudentGuideView } from './components/StudentGuideView';
-import { StudentGuideView } from './components/StudentGuideView';
 import { ParentCommunicationView } from './components/ParentCommunicationView';
 import { AppIconModal } from './components/AppIconModal';
 
