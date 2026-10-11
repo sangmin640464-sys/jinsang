@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { 
+  Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, 
+  Clock, CheckCircle2, X, Image as ImageIcon, Loader2, ShieldCheck, 
+  AlertTriangle, CheckSquare, Square, RotateCcw, Bus, Hotel, PhoneCall, ExternalLink
+} from 'lucide-react';
 import { 
   ClassNotice, 
   GalleryImage, 
@@ -10,9 +14,20 @@ import {
   sendQaMessage,
   subscribeToUpdates 
 } from '../utils/communicationService';
+import { PREP_CHECKLIST, EMERGENCY_CONTACTS } from '../data/tripData';
 
-export const ParentCommunicationView = ({ currentUser, triggerToast }: { currentUser: any; triggerToast: (msg: string) => void }) => {
-  const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'qa'>('notices');
+interface ParentCommunicationViewProps {
+  currentUser: any;
+  triggerToast: (msg: string) => void;
+  initialTab?: 'notices' | 'gallery' | 'safety' | 'qa';
+}
+
+export const ParentCommunicationView = ({ 
+  currentUser, 
+  triggerToast,
+  initialTab = 'notices'
+}: ParentCommunicationViewProps) => {
+  const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'safety' | 'qa'>(initialTab);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const studentClass = Number(currentUser.studentClass) || 4;
@@ -30,6 +45,43 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }: { current
   const [qaInput, setQaInput] = useState('');
   const [isSendingQa, setIsSendingQa] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Safety & Checklist state
+  const [safetyFilter, setSafetyFilter] = useState<'all' | 'prep' | 'car' | 'hotel'>('all');
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    try {
+      const savedPrep = localStorage.getItem('jj_parent_prep_v1');
+      if (savedPrep) setCheckedItems(JSON.parse(savedPrep));
+    } catch (e) {}
+  }, []);
+
+  const handleToggleCheck = (itemKey: string) => {
+    setCheckedItems((prev) => {
+      const updated = { ...prev, [itemKey]: !prev[itemKey] };
+      try {
+        localStorage.setItem('jj_parent_prep_v1', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const handleClearChecklist = () => {
+    if (window.confirm('준비물 체크 상태를 모두 초기화하시겠습니까?')) {
+      setCheckedItems({});
+      localStorage.removeItem('jj_parent_prep_v1');
+      triggerToast('준비물 체크가 초기화되었습니다.');
+    }
+  };
+
+  const checkedCount = Object.values(checkedItems).filter(Boolean).length;
 
   // Fetch notices
   const fetchNotices = async () => {
@@ -123,7 +175,7 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }: { current
               {isClass4 ? '이헤레나 선생님의 학급 소통방' : `${studentClass}반 학급 소통방`}
             </h2>
             <p className="text-pink-100 text-xs sm:text-sm">
-              {studentName} 학생 학부모님, 환영합니다. 담임선생님의 실시간 공지사항과 활동 사진, 1:1 상담을 이용하실 수 있습니다.
+              {studentName} 학생 학부모님, 환영합니다. 담임선생님의 실시간 공지사항과 활동 사진, 안전교육 수칙, 1:1 상담을 이용하실 수 있습니다.
             </p>
           </div>
         </div>
@@ -148,6 +200,7 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }: { current
         {[
           { id: 'notices', label: `공지사항 (${notices.length}건)`, icon: Megaphone },
           { id: 'gallery', label: `활동 사진첩 (${galleryImages.length}장)`, icon: Camera },
+          { id: 'safety', label: '안전교육 & 준비물', icon: ShieldCheck, badge: '안심' },
           { id: 'qa', label: '선생님께 1:1 문의', icon: MessageSquareText },
         ].map((t) => (
           <button
@@ -161,6 +214,11 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }: { current
           >
             <t.icon className="w-4 h-4" />
             <span>{t.label}</span>
+            {t.badge && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-black">
+                {t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -255,6 +313,190 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }: { current
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Safety & Checklist Tab (Requested by User) */}
+        {activeTab === 'safety' && (
+          <div className="space-y-5">
+            {/* Top Info Banner */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-700 to-teal-800 text-white shadow-soft space-y-2">
+              <div className="inline-flex items-center space-x-1 text-xs bg-white/20 text-emerald-100 px-3 py-1 rounded-full font-bold">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>학생 안전 종합 안내서 (학부모 열람용)</span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-black">
+                자녀의 안전하고 건강한 수학여행을 위한 안내 수칙
+              </h3>
+              <p className="text-emerald-100 text-xs sm:text-sm leading-relaxed">
+                진장중학교 학생 종합 안내서에 수록된 안전 교육 지침과 준비물 체크리스트입니다. 자녀의 짐을 챙기실 때 확인해보세요.
+              </p>
+            </div>
+
+            {/* Filter buttons */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'all', label: '전체 보기' },
+                { id: 'prep', label: '준비물 체크리스트' },
+                { id: 'car', label: '차량 이동 안전수칙' },
+                { id: 'hotel', label: '숙소·활동 안전수칙' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setSafetyFilter(f.id as any)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                    safetyFilter === f.id
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Prep Checklist Section */}
+            {(safetyFilter === 'all' || safetyFilter === 'prep') && (
+              <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="font-black text-base text-slate-900 flex items-center space-x-2">
+                      <CheckSquare className="w-4 h-4 text-emerald-600" />
+                      <span>수학여행 필수 준비물 체크리스트</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      자녀의 가방을 챙겨주실 때 하나씩 체크해보세요. (기기에 자동 저장됩니다)
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                      {checkedCount} / {PREP_CHECKLIST.length} 완료
+                    </span>
+                    <button
+                      onClick={handleClearChecklist}
+                      className="text-xs text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-50"
+                      title="체크리스트 초기화"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {PREP_CHECKLIST.map((item, idx) => {
+                    const key = `parent_${item.category}_${item.item}`;
+                    const isChecked = Boolean(checkedItems[key]);
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleToggleCheck(key)}
+                        className={`w-full text-left p-2.5 rounded-xl border text-xs flex items-center space-x-2.5 transition-all ${
+                          isChecked
+                            ? 'bg-slate-50 border-slate-200 text-slate-400 line-through'
+                            : 'bg-white border-slate-200 text-slate-800 hover:border-pink-300'
+                        }`}
+                      >
+                        {isChecked ? (
+                          <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-300 shrink-0" />
+                        )}
+                        <span className="text-[10px] text-slate-400 font-bold w-14 shrink-0">
+                          {item.category}
+                        </span>
+                        <span className="flex-1 font-semibold truncate">{item.item}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Forbidden items warning */}
+                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-900 space-y-1.5">
+                  <p className="font-black flex items-center space-x-1.5 text-sm">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    <span>가져오면 안 되는 물품 (학부모님 주의 당부)</span>
+                  </p>
+                  <ul className="list-disc list-inside text-xs text-red-800 pl-2 space-y-1">
+                    <li>술, 담배, 라이터 등 청소년 유해 물품 (발견 시 전원 징계 조치)</li>
+                    <li>고데기, 헤어드라이어 등 전열기구 (호텔 내 화재 및 화상 위험으로 엄격 금지)</li>
+                    <li>화투, 트럼프 카드 등 사행성 물품</li>
+                    <li>고가의 귀중품, 명품, 고액의 현금 (분실 시 학교에서 책임지지 않습니다)</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Vehicle Safety */}
+            {(safetyFilter === 'all' || safetyFilter === 'car') && (
+              <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+                <h4 className="font-black text-sm text-slate-900 flex items-center space-x-2">
+                  <Bus className="w-4 h-4 text-blue-600" />
+                  <span>버스 이동 및 탑승 안전수칙</span>
+                </h4>
+                <ul className="list-disc list-inside text-xs text-slate-700 space-y-1.5 leading-relaxed bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
+                  <li><b>전원 안전띠 필수 착용:</b> 운행 중에는 절대 자리에서 일어나지 않도록 교육했습니다.</li>
+                  <li><b>지정 호차 탑승:</b> 반별로 배정된 지정 버스(1~6호차)에만 탑승하며, 임의로 다른 차량으로 이동하지 않습니다.</li>
+                  <li><b>창밖 손/머리 내밀기 절대 금지:</b> 대형 교통사고 위험이 있으므로 엄격 지도합니다.</li>
+                  <li><b>멀미 대비:</b> 멀미가 있는 학생은 출발 30분 전 미리 멀미약을 복용하고 비닐봉지를 소지하도록 챙겨주세요.</li>
+                  <li><b>비상 탈출:</b> 차량 내 비상탈출 망치 및 소화기 위치를 출발 전 전원 사전 교육 완료했습니다.</li>
+                </ul>
+              </div>
+            )}
+
+            {/* Hotel & Activity Safety */}
+            {(safetyFilter === 'all' || safetyFilter === 'hotel') && (
+              <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                <div className="space-y-3">
+                  <h4 className="font-black text-sm text-slate-900 flex items-center space-x-2">
+                    <Hotel className="w-4 h-4 text-purple-600" />
+                    <span>숙소(나인트리 호텔 판교) 생활 & 안심 관리</span>
+                  </h4>
+                  <ul className="list-disc list-inside text-xs text-slate-700 space-y-1.5 leading-relaxed bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
+                    <li><b>야간 순찰 안전요원 4명 상주:</b> 22:00 ~ 06:00 복도 전 층을 상시 순찰하여 안전사고를 철저히 예방합니다.</li>
+                    <li><b>야간 외출 및 타 호실 방문 엄격 금지:</b> 밤 10시 이후 객실 밖 이동은 전면 통제됩니다.</li>
+                    <li><b>남녀 층간 분리 배정:</b> 남학생과 여학생 층을 엄격히 구분하여 안전을 보장합니다.</li>
+                    <li><b>배달 음식 안전:</b> 3층 로비에서 교사 인솔하에 수령 후 객실 내 섭취하도록 지도합니다.</li>
+                  </ul>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <h4 className="font-black text-sm text-slate-900 flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>체험 활동 및 조별 이동 안전수칙</span>
+                  </h4>
+                  <ul className="list-disc list-inside text-xs text-slate-700 space-y-1.5 leading-relaxed bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
+                    <li><b>개인 단독 행동 절대 금지:</b> 롯데월드 및 역사 탐방 시 반드시 조별(4~6명)로 동행합니다.</li>
+                    <li><b>길을 잃었을 때 행동 요령:</b> 당황하여 이동하지 말고 그 자리에 멈춰 서서 즉시 담임선생님께 전화합니다.</li>
+                    <li><b>19:00 롯데월드 정문 게이트 집결 시간 엄수:</b> 학생 화면에 실시간 긴급 알림 및 공지가 전달됩니다.</li>
+                  </ul>
+                </div>
+
+                {/* Emergency Contacts card */}
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-black text-amber-950 flex items-center space-x-1.5">
+                      <PhoneCall className="w-3.5 h-3.5 text-amber-700" />
+                      <span>비상 상황 시 신속 연락처</span>
+                    </span>
+                    <a href="tel:052-289-6481" className="text-amber-800 font-bold underline">
+                      학교 본부: 052-289-6481
+                    </a>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-amber-900 pt-1">
+                    {EMERGENCY_CONTACTS.slice(0, 4).map((c, i) => (
+                      <div key={i} className="flex justify-between bg-white/70 p-2 rounded-xl">
+                        <span className="font-bold">{c.label}</span>
+                        <a href={`tel:${c.tel.replace(/[^0-9]/g, '')}`} className="font-mono font-bold text-blue-700">
+                          {c.tel}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

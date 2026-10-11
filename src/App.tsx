@@ -210,6 +210,7 @@ export default function App() {
 
   const parentNavItems = [
     { icon: <MessageSquareText className="w-4 h-4" />, label: '이헤레나 선생님 학급 소통', tab: 'communication', badge: '학부모' },
+    { icon: <ShieldCheck className="w-4 h-4 text-emerald-600" />, label: '학생 안전교육 & 준비물', tab: 'safety', badge: '안심' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전', tab: 'emergency' },
   ];
@@ -503,7 +504,11 @@ export default function App() {
           )}
 
           {activeTab === 'communication' && isParent && (
-            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} />
+            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} initialTab="notices" />
+          )}
+
+          {activeTab === 'safety' && isParent && (
+            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} initialTab="safety" />
           )}
 
           {activeTab === 'dashboard' && !isStudent && !isParent && (
@@ -549,7 +554,45 @@ export default function App() {
 
         {/* Mobile Sticky Bottom Navigation Bar (100% thumb friendly) */}
         <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 px-2 py-1.5 flex items-center justify-around text-[10px] font-bold">
-          {isStudent ? (
+          {isParent ? (
+            <>
+              <button
+                onClick={() => setActiveTab('communication')}
+                className={`flex flex-col items-center p-1 ${activeTab === 'communication' ? 'text-pink-600 font-black' : 'text-slate-400'}`}
+              >
+                <MessageSquareText className="w-5 h-5 mb-0.5" />
+                <span>소통방</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('safety')}
+                className={`flex flex-col items-center p-1 ${activeTab === 'safety' ? 'text-pink-600 font-black' : 'text-slate-400'}`}
+              >
+                <ShieldCheck className="w-5 h-5 mb-0.5" />
+                <span>안전교육</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('schedule')}
+                className={`flex flex-col items-center p-1 ${activeTab === 'schedule' ? 'text-pink-600 font-black' : 'text-slate-400'}`}
+              >
+                <CalendarRange className="w-5 h-5 mb-0.5" />
+                <span>일정표</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('emergency')}
+                className={`flex flex-col items-center p-1 ${activeTab === 'emergency' ? 'text-pink-600 font-black' : 'text-slate-400'}`}
+              >
+                <ShieldAlert className="w-5 h-5 mb-0.5" />
+                <span>비상연락</span>
+              </button>
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="flex flex-col items-center p-1 text-slate-400"
+              >
+                <Menu className="w-5 h-5 mb-0.5" />
+                <span>메뉴</span>
+              </button>
+            </>
+          ) : isStudent ? (
             <>
               <button
                 onClick={() => setActiveTab('guide')}
