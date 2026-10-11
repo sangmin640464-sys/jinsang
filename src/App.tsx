@@ -65,6 +65,10 @@ export default function App() {
       if (savedUserStr) {
         const user = JSON.parse(savedUserStr);
         if (user) {
+          if (user.role === 'parent' && user.studentName?.trim() === '강승엽' && user.studentClass !== 4) {
+            user.studentClass = 4;
+            localStorage.setItem('jj_logged_in_user_v1', JSON.stringify(user));
+          }
           setCurrentUser(user);
           if (user.role === 'student') setActiveTab('guide');
           else if (user.role === 'parent') setActiveTab('communication');
@@ -506,11 +510,11 @@ export default function App() {
           )}
 
           {activeTab === 'communication' && isParent && (
-            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} initialTab="notices" />
+            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} initialTab="notices" students={students} />
           )}
 
           {activeTab === 'safety' && isParent && (
-            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} initialTab="safety" />
+            <ParentCommunicationView currentUser={currentUser} triggerToast={triggerToast} initialTab="safety" students={students} />
           )}
 
           {activeTab === 'dashboard' && !isStudent && !isParent && (
@@ -830,17 +834,21 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
       return;
     }
     const matched = students.find(
-      (s) => s.class_no === Number(studentClass) && s.name.trim() === studentName.trim()
+      (s) => s.name.trim() === studentName.trim() && s.class_no === Number(studentClass)
+    ) || students.find(
+      (s) => s.name.trim() === studentName.trim()
     );
-    if (matched || true) { // allow demo login even if mismatch for parent
-      onLogin({
-        role: 'parent',
-        name: `${studentName} 학부모`,
-        studentClass: Number(studentClass),
-        studentNo: matched ? matched.student_no : 0,
-        studentName: studentName.trim(),
-      });
-    }
+
+    const actualClass = matched ? matched.class_no : (Number(studentClass) || 4);
+    const actualNo = matched ? matched.student_no : 0;
+
+    onLogin({
+      role: 'parent',
+      name: `${studentName.trim()} 학부모`,
+      studentClass: actualClass,
+      studentNo: actualNo,
+      studentName: studentName.trim(),
+    });
   };
 
   // Handle Student Login
@@ -914,7 +922,10 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
             </button>
             <button
               type="button"
-              onClick={() => setLoginMode('parent')}
+              onClick={() => {
+                setLoginMode('parent');
+                setStudentClass('4');
+              }}
               className={`py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 ${
                 loginMode === 'parent' ? 'bg-pink-500 text-white shadow-sm' : 'text-slate-300 hover:text-white'
               }`}
@@ -1051,7 +1062,7 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
               >
                 {[1, 2, 3, 4, 5, 6].map((n) => (
                   <option key={n} value={n}>
-                    2학년 {n}반
+                    2학년 {n}반 {n === 4 ? '(시범 소통학급)' : ''}
                   </option>
                 ))}
               </select>
@@ -1061,7 +1072,12 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
               <input
                 type="text"
                 value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setStudentName(val);
+                  const st = students.find((s) => s.name.trim() === val.trim());
+                  if (st) setStudentClass(String(st.class_no));
+                }}
                 placeholder="예: 강승엽"
                 className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400"
               />

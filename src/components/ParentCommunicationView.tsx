@@ -20,18 +20,22 @@ interface ParentCommunicationViewProps {
   currentUser: any;
   triggerToast: (msg: string) => void;
   initialTab?: 'notices' | 'gallery' | 'safety' | 'qa';
+  students?: any[];
 }
 
 export const ParentCommunicationView = ({ 
   currentUser, 
   triggerToast,
-  initialTab = 'notices'
+  initialTab = 'notices',
+  students = []
 }: ParentCommunicationViewProps) => {
   const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'safety' | 'qa'>(initialTab);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const studentClass = Number(currentUser.studentClass) || 4;
-  const studentName = currentUser.studentName || '강승엽';
+  // Cross-reference student from roster by name first to guarantee 100% correct class
+  const matchedStudent = students.find((s: any) => s.name?.trim() === currentUser?.studentName?.trim());
+  const studentClass = matchedStudent ? matchedStudent.class_no : (Number(currentUser?.studentClass) || 4);
+  const studentName = currentUser?.studentName || (matchedStudent ? matchedStudent.name : '강승엽');
   const isClass4 = studentClass === 4;
 
   const [notices, setNotices] = useState<ClassNotice[]>([]);
