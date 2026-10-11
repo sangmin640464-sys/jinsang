@@ -99,6 +99,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
 
   const checkedCount = Object.values(checkedItems).filter(Boolean).length;
   const isStudent = currentUser?.role === 'student';
+  const isParent = currentUser?.role === 'parent';
   const currentStudentObj = isStudent ? students.find((s) => s.id === currentUser.id) : null;
 
   return (
@@ -146,25 +147,44 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
       )}
 
       {/* Top Action Quick Buttons */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-4">
-        <a
-          href={OPEN_KAKAO_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="clean-card p-3.5 bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center space-x-2 shadow-sm transition-all"
-        >
-          <Camera className="w-4 h-4 text-amber-900" />
-          <span>사진 미션 제출 (오픈카톡)</span>
-          <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-        </a>
-        <a
-          href="tel:052-289-6481"
-          className="clean-card p-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center space-x-2 shadow-sm transition-all"
-        >
-          <PhoneCall className="w-4 h-4" />
-          <span>학교 052-289-6481 통화</span>
-        </a>
-      </div>
+      {!isParent ? (
+        <div className="grid grid-cols-2 gap-2 sm:gap-4">
+          <a
+            href={OPEN_KAKAO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="clean-card p-3.5 bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center space-x-2 shadow-sm transition-all"
+          >
+            <Camera className="w-4 h-4 text-amber-900" />
+            <span>사진 미션 제출 (오픈카톡)</span>
+            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+          </a>
+          <a
+            href="tel:052-289-6481"
+            className="clean-card p-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center space-x-2 shadow-sm transition-all"
+          >
+            <PhoneCall className="w-4 h-4" />
+            <span>학교 052-289-6481 통화</span>
+          </a>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+          <a
+            href="tel:052-289-6481"
+            className="clean-card p-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center space-x-2 shadow-sm transition-all"
+          >
+            <PhoneCall className="w-4 h-4" />
+            <span>학교 본부 (052-289-6481) 바로 통화</span>
+          </a>
+          <a
+            href="tel:119"
+            className="clean-card p-3.5 bg-red-600 hover:bg-red-700 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center space-x-2 shadow-sm transition-all"
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>119 응급 긴급 전화</span>
+          </a>
+        </div>
+      )}
 
       {/* Navigation Sub-tabs (Horizontal scroll for mobile) */}
       <div className="overflow-x-auto pb-1 -mx-2 px-2 scrollbar-none">
@@ -177,7 +197,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
             { id: 't5', label: '안전교육', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
             { id: 't6', label: '롯데월드', icon: <Utensils className="w-3.5 h-3.5" /> },
             { id: 't7', label: '경복궁·형무소', icon: <MapPin className="w-3.5 h-3.5" /> },
-            { id: 't8', label: '사진 미션', icon: <Camera className="w-3.5 h-3.5" /> },
+            ...(!isParent ? [{ id: 't8', label: '사진 미션', icon: <Camera className="w-3.5 h-3.5" /> }] : []),
           ].map((tab) => (
             <button
               key={tab.id}

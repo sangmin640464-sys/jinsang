@@ -380,18 +380,20 @@ export default function App() {
 
         {/* Sidebar Footer */}
         <div className={`p-4 border-t ${isHead ? 'border-indigo-700/50' : 'border-slate-200'} space-y-2`}>
-          <a
-            href={OPEN_KAKAO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className={`w-full py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 transition-all ${
-              isHead ? 'bg-amber-400 text-amber-950 hover:bg-amber-300' : 'bg-slate-900 text-white hover:bg-slate-800'
-            }`}
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>사진 미션 오픈카톡방</span>
-            <ExternalLink className="w-3 h-3 opacity-60" />
-          </a>
+          {!isParent && (
+            <a
+              href={OPEN_KAKAO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={`w-full py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 transition-all ${
+                isHead ? 'bg-amber-400 text-amber-950 hover:bg-amber-300' : 'bg-slate-900 text-white hover:bg-slate-800'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>사진 미션 오픈카톡방</span>
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </a>
+          )}
 
           <button
             onClick={handleLogout}
