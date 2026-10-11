@@ -8,14 +8,15 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.').replace(/\\/g, '/'),
       },
     },
     build: {
+      assetsDir: 'assets',
       rollupOptions: {
         input: {
-          main: path.resolve(__dirname, 'index.html'),
-          teacher: path.resolve(__dirname, 'teacher/index.html')
+          main: path.resolve(import.meta.dirname, 'index.html').replace(/\\/g, '/'),
+          teacher: path.resolve(import.meta.dirname, 'teacher/index.html').replace(/\\/g, '/')
         }
       }
     },

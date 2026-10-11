@@ -1,57 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../utils/supabase';
+import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Clock, CheckCircle2, X, Image as ImageIcon } from 'lucide-react';
+import { 
+  ClassNotice, 
+  GalleryImage, 
+  getNotices, 
+  getGallery, 
+  subscribeToUpdates 
+} from '../utils/communicationService';
 
-export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
+export const ParentCommunicationView = ({ currentUser, triggerToast }: { currentUser: any; triggerToast: (msg: string) => void }) => {
   const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'qa'>('notices');
   const [qaInput, setQaInput] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const isClass4 = currentUser.studentClass === 4;
+  const studentClass = Number(currentUser.studentClass) || 4;
+  const isClass4 = studentClass === 4;
 
-  const notices = [
-    {
-      id: 1,
-      title: '2일차 롯데월드 안내 및 하원 시간',
-      date: '10.15 (목) 08:30',
-      content: '학부모님들 안녕하십니까! 오늘 2학년 4반 학생들은 롯데월드 자율 체험을 진행합니다. 아이들이 저녁 7시까지 정문 게이트에 무사히 집결할 수 있도록 당부 부탁드립니다. 특이사항 발생 시 언제든 연락주세요. - 담임 이헤레나 올림'
-    },
-    {
-      id: 2,
-      title: '수학여행 출발 전 안전교육 안내',
-      date: '10.13 (화) 16:00',
-      content: '내일 출발하는 수학여행과 관련하여 안전교육을 모두 마쳤습니다. 우리 4반 아이들 모두 건강하게 잘 다녀올 수 있도록 꼼꼼히 챙기겠습니다.'
-    }
-  ];
+  const [notices, setNotices] = useState<ClassNotice[]>([]);
+  const [loadingNotices, setLoadingNotices] = useState(false);
 
-  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [loadingGallery, setLoadingGallery] = useState(false);
 
-  useEffect(() => {
-    if (activeTab === 'gallery') {
-      fetchGalleryImages();
+  // Fetch notices
+  const fetchNotices = async () => {
+    setLoadingNotices(true);
+    try {
+      const data = await getNotices(studentClass);
+      setNotices(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingNotices(false);
     }
-  }, [activeTab]);
+  };
 
-  const fetchGalleryImages = async () => {
+  // Fetch gallery
+  const fetchGallery = async () => {
     setLoadingGallery(true);
     try {
-      const { data, error } = await supabase
-        .from('class_galleries')
-        .select('image_url')
-        .eq('class_no', currentUser.studentClass)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching gallery:', error);
-      } else if (data) {
-        setGalleryImages(data.map(item => item.image_url));
-      }
+      const data = await getGallery(studentClass);
+      setGalleryImages(data);
     } catch (e) {
       console.error(e);
     } finally {
       setLoadingGallery(false);
     }
   };
+
+  useEffect(() => {
+    fetchNotices();
+    fetchGallery();
+
+    const unsubscribe = subscribeToUpdates((type) => {
+      if (type === 'notices') fetchNotices();
+      if (type === 'gallery') fetchGallery();
+    });
+
+    return () => unsubscribe();
+  }, [studentClass]);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -62,13 +69,13 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
           <div className="space-y-2">
             <div className="inline-flex items-center space-x-1.5 text-xs font-bold px-3 py-1 rounded-full bg-pink-900/30 text-pink-100 border border-pink-400/30">
               <UsersRound className="w-3.5 h-3.5" />
-              <span>진장중학교 2학년 {currentUser.studentClass}반 학부모 소통방</span>
+              <span>진장중학교 2학년 {studentClass}반 학부모 소통방</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black">
-              {currentUser.studentClass === 4 ? '이헤레나 선생님의 학급 소통방' : `${currentUser.studentClass}반 학급 소통방`}
+              {isClass4 ? '이헤레나 선생님의 학급 소통방' : `${studentClass}반 학급 소통방`}
             </h2>
             <p className="text-pink-100 text-xs sm:text-sm">
-              {currentUser.studentName} 학생 학부모님, 환영합니다. 안전하고 즐거운 수학여행이 되도록 최선을 다하겠습니다.
+              {currentUser.studentName} 학생 학부모님, 환영합니다. 담임선생님의 실시간 공지사항과 활동 사진을 확인하실 수 있습니다.
             </p>
           </div>
         </div>
@@ -77,17 +84,22 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
       {!isClass4 && (
         <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl text-sm flex items-start space-x-3">
           <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <p>
-            <b>알림:</b> 현재 이 학부모 소통방 기능은 <b>2학년 4반 (이헤레나 선생님)</b>에서 시범 운영 중입니다. 다른 반의 경우 기능이 제한적으로 작동할 수 있습니다.
-          </p>
+          <div>
+            <p>
+              <b>안내:</b> 현재 실시간 학부모 소통방 기능은 <b>2학년 4반 (이헤레나 선생님)</b>에서 시범 운영 중입니다.
+            </p>
+            <p className="text-xs text-amber-800 mt-1">
+              * 원활한 테스트를 위해 4반 시범 공지 및 사진도 함께 열람하실 수 있도록 제공됩니다.
+            </p>
+          </div>
         </div>
       )}
 
       {/* Tabs */}
       <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto no-scrollbar pb-px">
         {[
-          { id: 'notices', label: '공지사항', icon: Megaphone },
-          { id: 'gallery', label: '활동 사진첩', icon: Camera },
+          { id: 'notices', label: `공지사항 (${notices.length}건)`, icon: Megaphone },
+          { id: 'gallery', label: `활동 사진첩 (${galleryImages.length}장)`, icon: Camera },
           { id: 'qa', label: '선생님께 1:1 문의', icon: MessageSquareText },
         ].map((t) => (
           <button
@@ -110,22 +122,46 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
         {/* Notices Tab */}
         {activeTab === 'notices' && (
           <div className="space-y-4">
-            {notices.map((n) => (
-              <div key={n.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-pink-200 transition-all group">
-                <div className="flex justify-between items-start mb-3">
-                  <h3 className="font-black text-slate-900 text-base group-hover:text-pink-600 transition-colors">
-                    {n.title}
-                  </h3>
-                  <span className="text-[10px] flex items-center space-x-1 text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                    <Clock className="w-3 h-3" />
-                    <span>{n.date}</span>
-                  </span>
-                </div>
-                <p className="text-sm text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                  {n.content}
-                </p>
+            <div className="flex justify-between items-center px-2">
+              <span className="text-xs font-bold text-slate-500">선생님이 등록하신 실시간 공지사항</span>
+              <span className="text-xs text-pink-600 font-bold">실시간 동기화 중</span>
+            </div>
+
+            {loadingNotices ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
               </div>
-            ))}
+            ) : notices.length === 0 ? (
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center">
+                <Megaphone className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 text-sm">등록된 공지사항이 없습니다.</p>
+              </div>
+            ) : (
+              notices.map((n) => (
+                <div key={n.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-pink-200 transition-all group">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] font-black bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
+                          {n.class_no === 0 ? '전체' : `${n.class_no}반`}
+                        </span>
+                        <h3 className="font-black text-slate-900 text-base group-hover:text-pink-600 transition-colors">
+                          {n.title}
+                        </h3>
+                      </div>
+                      <span className="text-[11px] text-slate-400 block">발송: {n.author}</span>
+                    </div>
+                    <span className="text-[10px] flex items-center space-x-1 text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 shrink-0">
+                      <Clock className="w-3 h-3" />
+                      <span>{n.date}</span>
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100 whitespace-pre-line">
+                    {n.content}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         )}
 
@@ -133,8 +169,10 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
         {activeTab === 'gallery' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-sm font-bold text-slate-700">실시간 사진첩</span>
-              <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-md font-black">총 {galleryImages.length}장</span>
+              <span className="text-sm font-bold text-slate-700">실시간 활동 사진첩</span>
+              <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-md font-black">
+                총 {galleryImages.length}장
+              </span>
             </div>
             
             {loadingGallery ? (
@@ -145,14 +183,24 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
               <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center">
                 <Camera className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-500 text-sm">아직 등록된 사진이 없습니다.</p>
+                <p className="text-xs text-slate-400 mt-1">선생님께서 사진을 업로드하시면 이곳에 실시간으로 표시됩니다.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-                {galleryImages.map((src, idx) => (
-                  <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group cursor-pointer relative">
-                    <img src={src} alt="학급 사진" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                {galleryImages.map((img) => (
+                  <div 
+                    key={img.id} 
+                    onClick={() => setSelectedImage(img.url)}
+                    className="aspect-square rounded-2xl overflow-hidden border border-slate-200 shadow-sm group cursor-pointer relative bg-slate-100"
+                  >
+                    <img 
+                      src={img.url} 
+                      alt="학급 사진" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3">
                       <span className="text-white text-[10px] font-bold">크게 보기</span>
+                      <span className="text-pink-200 text-[10px] font-bold">{img.class_no}반</span>
                     </div>
                   </div>
                 ))}
@@ -171,7 +219,7 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
                 </div>
                 <div>
                   <h4 className="font-black text-sm text-slate-900">
-                    {isClass4 ? '이헤레나 담임선생님' : '담임 선생님'}
+                    {isClass4 ? '이헤레나 담임선생님' : `${studentClass}반 담임 선생님`}
                   </h4>
                   <p className="text-[10px] text-slate-500 flex items-center space-x-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -232,7 +280,7 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if(qaInput.trim()) {
-                    triggerToast('메시지가 성공적으로 전송되었습니다.');
+                    triggerToast('선생님께 문의 메시지가 성공적으로 전송되었습니다.');
                     setQaInput('');
                   }
                 }}
@@ -256,6 +304,28 @@ export const ParentCommunicationView = ({ currentUser, triggerToast }) => {
           </div>
         )}
       </div>
+
+      {/* Image Modal for Fullscreen View */}
+      {selectedImage && (
+        <div 
+          onClick={() => setSelectedImage(null)}
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div className="relative max-w-3xl max-h-[90vh]">
+            <img 
+              src={selectedImage} 
+              alt="확대 사진" 
+              className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl" 
+            />
+            <button 
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-3 right-3 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/90"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

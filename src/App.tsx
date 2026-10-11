@@ -1037,6 +1037,38 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
             <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-xs text-pink-200">
               <span className="font-bold">안내:</span> 현재 2학년 4반 (이헤레나 선생님) 학급만 소통 기능을 시범 운영하고 있습니다.
             </div>
+
+            {/* Quick Demo Parent Picker */}
+            <div className="pt-1 space-y-1.5">
+              <span className="text-[11px] text-pink-300 font-bold block">
+                빠른 체험 학부모 선택 (원클릭 자동입력):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentClass('4');
+                    setStudentName('강승엽');
+                    setStudentBirth('1014');
+                  }}
+                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-200 border border-pink-400/30 font-bold"
+                >
+                  🌸 4반 강승엽 학부모 (시범학급)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentClass('1');
+                    setStudentName('김규빈');
+                    setStudentBirth('1014');
+                  }}
+                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 border border-white/20 font-medium"
+                >
+                  1반 김규빈 학부모
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
               className="w-full py-3.5 rounded-2xl text-xs sm:text-sm font-black transition-all bg-pink-500 hover:bg-pink-600 text-white shadow-lg"
