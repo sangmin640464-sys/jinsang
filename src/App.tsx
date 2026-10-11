@@ -17,6 +17,13 @@ import { StudentGuideView } from './components/StudentGuideView';
 import { ParentCommunicationView } from './components/ParentCommunicationView';
 import { TeacherParentCommunicationView } from './components/TeacherParentCommunicationView';
 import { AppIconModal } from './components/AppIconModal';
+import {
+  getPublicNotices,
+  sendPublicNotice,
+  subscribeToUpdates,
+  PublicNoticeItem,
+  DEFAULT_PUBLIC_NOTICES
+} from './utils/communicationService';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -37,11 +44,11 @@ export default function App() {
   // Students roster state (140 students)
   const [students, setStudents] = useState<StudentInfo[]>(INITIAL_STUDENTS);
 
-  // Public Notices
-  const [publicNotices, setPublicNotices] = useState([
-    { id: 1, text: '[전체 공지] 19:00 롯데월드 정문 게이트 앞 전원 집결 및 인원 점검', time: '14:00' },
-    { id: 2, text: '[안전] 이동 중 안전벨트 필수 착용, 일행을 놓쳤을 때는 즉시 제자리에 멈춰 담임선생님께 전화하세요.', time: '08:30' }
-  ]);
+  // Public Notices (Synced via Supabase class_notices)
+  const [publicNotices, setPublicNotices] = useState<PublicNoticeItem[]>(DEFAULT_PUBLIC_NOTICES);
+  const [selectedNotice, setSelectedNotice] = useState<PublicNoticeItem | null>(null);
+  const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'class'>('all');
+  const [isSubmittingNotice, setIsSubmittingNotice] = useState(false);
 
   // Load teacher auth code, persisted students, app icon & auto-login user from localStorage
   useEffect(() => {
@@ -79,6 +86,32 @@ export default function App() {
       console.error(e);
     }
   }, []);
+
+  // Sync public notices periodically and via realtime broadcast
+  useEffect(() => {
+    const userClass = currentUser?.class_no || currentUser?.studentClass || currentUser?.myClass || 0;
+    const fetchNotices = async () => {
+      try {
+        const list = await getPublicNotices(userClass);
+        if (list && list.length > 0) {
+          setPublicNotices(list);
+        }
+      } catch (e) {
+        console.error('Error fetching public notices:', e);
+      }
+    };
+
+    fetchNotices();
+    const unsubscribe = subscribeToUpdates((type) => {
+      if (type === 'notices' || type === 'poll') {
+        fetchNotices();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [currentUser]);
 
   const updateFaviconDom = (iconId: string) => {
     try {
@@ -193,6 +226,13 @@ export default function App() {
   const isHead = currentUser.isHead;
   const isStudent = currentUser.role === 'student';
   const isParent = currentUser.role === 'parent';
+  const isTeacher = !isStudent && !isParent;
+
+  // Find class teacher name for parent
+  const parentTeacherInfo = isParent
+    ? TEACHERS.find((t) => t.classNo === (currentUser.studentClass || 4))
+    : null;
+  const parentTeacherName = parentTeacherInfo ? parentTeacherInfo.name : '담임';
 
   // Navigation Items
   const studentNavItems = [
@@ -213,7 +253,7 @@ export default function App() {
   ];
 
   const parentNavItems = [
-    { icon: <MessageSquareText className="w-4 h-4" />, label: '이헤레나 선생님 학급 소통', tab: 'communication', badge: '학부모' },
+    { icon: <MessageSquareText className="w-4 h-4" />, label: `${currentUser.studentClass}반 ${parentTeacherName} 선생님 학급 소통`, tab: 'communication', badge: '학부모' },
     { icon: <ShieldCheck className="w-4 h-4 text-emerald-600" />, label: '학생 안전교육 & 준비물', tab: 'safety', badge: '안심' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전', tab: 'emergency' },
@@ -454,16 +494,20 @@ export default function App() {
               <span className="hidden sm:inline">아이콘 변경</span>
             </button>
 
-            {/* Quick Broadcast button for teachers */}
-            {!isStudent && (
+            {/* Quick Broadcast button for teachers ONLY (Students & Parents cannot write) */}
+            {isTeacher && (
               <button
-                onClick={() => setBroadcastModalOpen(true)}
+                onClick={() => {
+                  setBroadcastTarget('all');
+                  setBroadcastModalOpen(true);
+                }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center space-x-1.5 shadow-xs transition-all ${
                   isHead ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
+                title="실시간 공지 작성 및 발송"
               >
                 <Send className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{isHead ? '전체 공지' : '학급 공지'}</span>
+                <span className="hidden sm:inline">공지 발송</span>
               </button>
             )}
 
@@ -487,14 +531,27 @@ export default function App() {
           </div>
         </header>
 
-        {/* Public Notice Banner on Mobile */}
+        {/* Public Notice Banner (Clickable to view detail modal for all roles: Student, Parent, Teacher) */}
         {publicNotices.length > 0 && (
-          <div className="bg-amber-50 border-b border-amber-200/80 px-4 py-2 flex items-center space-x-2 text-xs text-amber-900">
-            <Megaphone className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-bounce" />
-            <span className="font-bold truncate">{publicNotices[0].text}</span>
-            <span className="text-[10px] text-amber-600 shrink-0 font-mono ml-auto">
-              {publicNotices[0].time}
-            </span>
+          <div
+            onClick={() => setSelectedNotice(publicNotices[0])}
+            className="bg-amber-50 hover:bg-amber-100/90 border-b border-amber-200/90 px-4 py-2.5 flex items-center space-x-2.5 text-xs text-amber-950 cursor-pointer transition-colors shadow-2xs group"
+            title="클릭하여 공지 전문 확인하기"
+          >
+            <div className="p-1 rounded-lg bg-amber-200/60 text-amber-800 shrink-0 group-hover:scale-105 transition-transform">
+              <Megaphone className="w-3.5 h-3.5 animate-bounce" />
+            </div>
+            <div className="flex items-center space-x-2 truncate flex-1">
+              <span className="font-extrabold truncate text-amber-950">{publicNotices[0].text}</span>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <span className="text-[10px] text-amber-700 font-mono">
+                {publicNotices[0].time}
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-200/80 text-amber-900 group-hover:bg-amber-300 transition-colors">
+                상세보기
+              </span>
+            </div>
           </div>
         )}
 
@@ -684,52 +741,195 @@ export default function App() {
         </nav>
       </div>
 
-      {/* Broadcast Notice Modal */}
-      {broadcastModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 space-y-4 shadow-soft">
-            <div className="flex justify-between items-center">
-              <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
-                <Send className="w-4 h-4 text-blue-600" />
-                <span>{isHead ? '전체 학년 긴급 공지 발송' : `${currentUser.myClass}반 공지 발송`}</span>
-              </h3>
-              <button onClick={() => setBroadcastModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+      {/* Broadcast Notice Modal (Available ONLY to Teachers & Head Teachers) */}
+      {broadcastModalOpen && isTeacher && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 space-y-4 shadow-xl">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                  <Megaphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">
+                    실시간 공지 작성 및 발송
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    작성자: {currentUser?.name} 선생님 ({isHead ? '총괄본부' : `${currentUser?.myClass}반 담임`})
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setBroadcastModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-slate-500">
-              {isHead
-                ? '모든 참가 학생(140명)의 스마트 인솔 화면 최상단에 실시간으로 표시됩니다.'
-                : '학생용 화면 상단에 배너 형태로 노출됩니다.'}
+
+            {/* Target Selection: 담임교사도 전체 학년 또는 내 학급 선택 가능 */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-black text-slate-700 block">발송 대상 선택</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBroadcastTarget('all')}
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    broadcastTarget === 'all'
+                      ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20'
+                      : 'border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 font-black text-xs">
+                    <span className={`w-2 h-2 rounded-full ${broadcastTarget === 'all' ? 'bg-blue-600' : 'bg-slate-300'}`} />
+                    <span>전체 학년 (140명)</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 pl-4">
+                    모든 학생·학부모 화면 상단에 배너로 표시
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBroadcastTarget('class')}
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    broadcastTarget === 'class'
+                      ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20'
+                      : 'border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 font-black text-xs">
+                    <span className={`w-2 h-2 rounded-full ${broadcastTarget === 'class' ? 'bg-blue-600' : 'bg-slate-300'}`} />
+                    <span>{currentUser?.myClass ? `${currentUser.myClass}반 학생/학부모` : '지정 학급'}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 pl-4">
+                    해당 반 학생·학부모에게만 상단 배너 표시
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-black text-slate-700 block">공지 제목 (한 줄 요약)</label>
+              <input
+                id="noticeTitle"
+                type="text"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-hidden focus:border-blue-500"
+                placeholder="예: 19:00 롯데월드 정문 게이트 앞 전원 집결"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-black text-slate-700 block">공지 상세 내용</label>
+              <textarea
+                id="noticeDetail"
+                rows={3}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs focus:outline-hidden focus:border-blue-500 leading-relaxed"
+                placeholder="학생 및 학부모님이 클릭했을 때 확인할 상세 내용을 입력하세요 (집결 위치, 준비물, 주의사항 등)..."
+              />
+            </div>
+
+            <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              * 작성된 공지는 Supabase 클라우드를 통해 <b>모든 학생 및 학부모 기기에 실시간으로 즉각 전달</b>됩니다. 학생과 학부모는 공지를 클릭하여 내용을 확인할 수 있습니다.
             </p>
-            <textarea
-              id="noticeText"
-              rows={4}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs focus:outline-hidden focus:border-blue-500 leading-relaxed"
-              placeholder="전달할 공지 내용을 입력하세요 (예: 19:00 정문 게이트 집결)..."
-            />
+
             <div className="flex justify-end space-x-2 pt-2">
               <button
+                type="button"
+                disabled={isSubmittingNotice}
                 onClick={() => setBroadcastModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 disabled:opacity-50"
               >
                 취소
               </button>
               <button
-                onClick={() => {
-                  const el = document.getElementById('noticeText') as HTMLTextAreaElement;
-                  const text = el?.value.trim();
-                  if (text) {
-                    const now = new Date();
-                    const timeStr = `${now.getHours()}:${now.getMinutes() < 10 ? '0' + now.getMinutes() : now.getMinutes()}`;
-                    setPublicNotices([{ id: Date.now(), text, time: timeStr }, ...publicNotices]);
-                    triggerToast('공지가 학생 화면에 성공적으로 발송되었습니다!');
+                type="button"
+                disabled={isSubmittingNotice}
+                onClick={async () => {
+                  const titleEl = document.getElementById('noticeTitle') as HTMLInputElement;
+                  const detailEl = document.getElementById('noticeDetail') as HTMLTextAreaElement;
+                  const titleText = titleEl?.value.trim();
+                  const detailText = detailEl?.value.trim();
+
+                  if (!titleText) {
+                    alert('공지 내용을 입력해 주세요.');
+                    return;
+                  }
+
+                  setIsSubmittingNotice(true);
+                  try {
+                    const authorLabel = `${currentUser?.name} 선생님${currentUser?.myClass ? ` (${currentUser.myClass}반)` : ''}`;
+                    const targetClass = broadcastTarget === 'all' ? 0 : (currentUser?.myClass || 0);
+
+                    const newNotice = await sendPublicNotice({
+                      target: broadcastTarget,
+                      class_no: targetClass,
+                      text: titleText,
+                      detail: detailText || titleText,
+                      author: authorLabel
+                    });
+
+                    setPublicNotices((prev) => [newNotice, ...prev]);
+                    triggerToast(`공지가 성공적으로 발송되었습니다! (${broadcastTarget === 'all' ? '전체 학년' : `${currentUser?.myClass}반`})`);
                     setBroadcastModalOpen(false);
+                  } catch (e) {
+                    console.error('Notice send error:', e);
+                    triggerToast('공지 발송 중 오류가 발생했습니다.');
+                  } finally {
+                    setIsSubmittingNotice(false);
                   }
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-badge"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md flex items-center space-x-1.5 disabled:opacity-50"
               >
-                공지 발송하기
+                <Send className="w-3.5 h-3.5" />
+                <span>{isSubmittingNotice ? '발송 중...' : '공지 발송하기'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Public Notice Detail Modal (For Students, Parents, Teachers to READ) */}
+      {selectedNotice && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 space-y-4 shadow-xl">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                      {selectedNotice.class_no === 0 ? '전체 공지' : `${selectedNotice.class_no}반 학급 공지`}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {selectedNotice.time}
+                    </span>
+                  </div>
+                  <h3 className="font-black text-base text-slate-900 mt-1 leading-snug">
+                    {selectedNotice.text}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedNotice(null)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs text-slate-700 leading-relaxed space-y-3 whitespace-pre-wrap">
+              {selectedNotice.content || selectedNotice.text}
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1 border-t border-slate-100">
+              <span className="font-bold text-slate-600">
+                발송: {selectedNotice.author}
+              </span>
+              <button
+                onClick={() => setSelectedNotice(null)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-xs"
+              >
+                확인 완료
               </button>
             </div>
           </div>

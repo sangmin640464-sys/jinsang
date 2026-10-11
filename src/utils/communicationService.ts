@@ -51,6 +51,25 @@ export const DEFAULT_NOTICES: ClassNotice[] = [
   }
 ];
 
+export const DEFAULT_PUBLIC_NOTICES = [
+  {
+    id: 'pub-notice-1',
+    class_no: 0,
+    text: '[전체 공지] 19:00 롯데월드 정문 게이트 앞 전원 집결 및 인원 점검',
+    time: '14:00',
+    author: '본부(조기호/김동욱 선생님)',
+    content: '모든 학생 및 인솔교사 선생님들께서는 19:00까지 롯데월드 정문 게이트 앞 광장으로 집결해 주시기 바랍니다. 학급별 인원 점검 및 버스 탑승 준비를 진행합니다.'
+  },
+  {
+    id: 'pub-notice-2',
+    class_no: 0,
+    text: '[안전 수칙] 이동 중 안전벨트 필수 착용 및 지정 동선 준수 안내',
+    time: '08:30',
+    author: '본부(안전총괄)',
+    content: '버스 이동 중에는 반드시 안전벨트를 착용하고 자리에서 일어나지 마세요. 일행을 놓쳤을 때는 당황하지 말고 제자리에 멈춰 서서 담임선생님께 즉시 전화하세요.'
+  }
+];
+
 // BroadcastChannel for instant cross-tab sync on same device
 const getBroadcastChannel = () => {
   if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -227,6 +246,145 @@ export const deleteNotice = async (noticeId: string): Promise<void> => {
   } catch (e) {}
 
   broadcastUpdate('notices');
+};
+
+// ----------------- PUBLIC NOTICES (전체 공지 & 학급 상단 배너) -----------------
+export interface PublicNoticeItem {
+  id: string | number;
+  class_no: number; // 0: 전체 공지, 1~6: 특정 학급 공지
+  text: string;
+  time: string;
+  author: string;
+  content?: string;
+  created_at?: string;
+}
+
+const STORAGE_KEY_PUBLIC_NOTICES = 'jj_public_notices_v2';
+
+export const getPublicNotices = async (myClass?: number): Promise<PublicNoticeItem[]> => {
+  let remoteList: PublicNoticeItem[] = [];
+
+  try {
+    // Supabase class_notices 조회 (전체 공지 class_no=0 또는 해당 학급 공지)
+    const { data, error } = await supabase
+      .from('class_notices')
+      .select('*')
+      .not('title', 'like', '__QA__:%')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (!error && data && Array.isArray(data)) {
+      remoteList = data.map((item) => {
+        const timeStr = item.created_at
+          ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+          : '최근';
+        const prefix = Number(item.class_no) === 0 ? '[전체 공지]' : `[${item.class_no}반 공지]`;
+        const titleText = item.title?.startsWith('[') ? item.title : `${prefix} ${item.title}`;
+        return {
+          id: String(item.id),
+          class_no: Number(item.class_no),
+          text: titleText,
+          time: timeStr,
+          author: item.author || '본부/선생님',
+          content: item.content || item.title,
+          created_at: item.created_at
+        };
+      });
+    }
+  } catch (e) {
+    console.warn('Supabase public notices fetch error:', e);
+  }
+
+  // Local Storage 저장본
+  let localList: PublicNoticeItem[] = [];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_PUBLIC_NOTICES);
+    if (saved) {
+      localList = JSON.parse(saved);
+    }
+  } catch (e) {}
+
+  // 합치기 (중복 id 제거)
+  const map = new Map<string, PublicNoticeItem>();
+  DEFAULT_PUBLIC_NOTICES.forEach((n) => map.set(String(n.id), n as PublicNoticeItem));
+  localList.forEach((n) => map.set(String(n.id), n));
+  remoteList.forEach((n) => map.set(String(n.id), n));
+
+  const allItems = Array.from(map.values()).sort((a, b) => {
+    const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  // 필터링: 전체공지(0)는 모두에게 보이고, 학급 공지는 해당 학급 사용자에게 표시
+  if (myClass && myClass > 0) {
+    return allItems.filter((n) => n.class_no === 0 || n.class_no === myClass);
+  }
+  return allItems;
+};
+
+export const sendPublicNotice = async (noticeData: {
+  target: 'all' | 'class';
+  class_no?: number;
+  text: string;
+  author: string;
+  detail?: string;
+}): Promise<PublicNoticeItem> => {
+  const isAll = noticeData.target === 'all';
+  const targetClassNo = isAll ? 0 : (noticeData.class_no || 0);
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const prefix = isAll ? '[전체 공지]' : `[${targetClassNo}반 공지]`;
+  
+  let cleanText = noticeData.text.trim();
+  if (!cleanText.startsWith('[')) {
+    cleanText = `${prefix} ${cleanText}`;
+  }
+
+  const newItem: PublicNoticeItem = {
+    id: `pub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    class_no: targetClassNo,
+    text: cleanText,
+    time: timeStr,
+    author: noticeData.author || '선생님',
+    content: noticeData.detail?.trim() || cleanText,
+    created_at: now.toISOString()
+  };
+
+  // 1. Supabase insert
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .insert([
+        {
+          class_no: newItem.class_no,
+          title: newItem.text,
+          content: newItem.content,
+          date: `${now.getMonth() + 1}.${now.getDate()} ${timeStr}`,
+          author: newItem.author
+        }
+      ])
+      .select();
+
+    if (!error && data && data[0]) {
+      newItem.id = String(data[0].id);
+    }
+  } catch (e) {
+    console.warn('Supabase public notice insert error:', e);
+  }
+
+  // 2. Local storage
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_PUBLIC_NOTICES);
+    const list: PublicNoticeItem[] = saved ? JSON.parse(saved) : [];
+    const updated = [newItem, ...list];
+    localStorage.setItem(STORAGE_KEY_PUBLIC_NOTICES, JSON.stringify(updated));
+  } catch (e) {}
+
+  // 3. 실시간 Broadcast
+  broadcastUpdate('notices');
+
+  return newItem;
 };
 
 // ----------------- GALLERY -----------------
