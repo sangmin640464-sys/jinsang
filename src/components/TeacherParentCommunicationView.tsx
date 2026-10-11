@@ -3,73 +3,103 @@ import { Camera, Megaphone, MessageSquareText, ShieldAlert, UsersRound, Send, Cl
 import { 
   ClassNotice, 
   GalleryImage, 
+  QaMessage,
   getNotices, 
   createNotice, 
   deleteNotice, 
   getGallery, 
   uploadGalleryImage, 
   deleteGalleryImage,
+  getQaMessages,
+  getAllQaStudents,
+  sendQaMessage,
   subscribeToUpdates 
 } from '../utils/communicationService';
 
 export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { currentUser: any; triggerToast: (msg: string) => void }) => {
   const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'qa'>('notices');
-  const [qaInput, setQaInput] = useState('');
   const [noticeTitle, setNoticeTitle] = useState('');
   const [noticeInput, setNoticeInput] = useState('');
   const [isSubmittingNotice, setIsSubmittingNotice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Target class number (Head teacher defaults to 4 for demo or custom class)
+  // Target class number
   const isHead = currentUser.myClass === 'all';
   const [targetClass, setTargetClass] = useState<number>(isHead ? 4 : (Number(currentUser.myClass) || 4));
   const isClass4 = targetClass === 4;
 
+  // Notices state
   const [notices, setNotices] = useState<ClassNotice[]>([]);
   const [loadingNotices, setLoadingNotices] = useState(false);
 
+  // Gallery state
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loadingGallery, setLoadingGallery] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  // 1:1 QA Chat state
+  const [qaStudents, setQaStudents] = useState<{ student_name: string; last_message: string; time: string; unread: boolean }[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<string>('강승엽');
+  const [qaMessages, setQaMessages] = useState<QaMessage[]>([]);
+  const [qaInput, setQaInput] = useState('');
+  const [isSendingQa, setIsSendingQa] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
   // Fetch notices
   const fetchNotices = async () => {
-    setLoadingNotices(true);
     try {
       const data = await getNotices(targetClass);
       setNotices(data);
     } catch (e) {
       console.error(e);
-    } finally {
-      setLoadingNotices(false);
     }
   };
 
   // Fetch gallery
   const fetchGallery = async () => {
-    setLoadingGallery(true);
     try {
       const data = await getGallery(targetClass);
       setGalleryImages(data);
     } catch (e) {
       console.error(e);
-    } finally {
-      setLoadingGallery(false);
+    }
+  };
+
+  // Fetch QA Chat
+  const fetchQa = async () => {
+    try {
+      const students = await getAllQaStudents(targetClass);
+      setQaStudents(students);
+      if (selectedStudent) {
+        const msgs = await getQaMessages(targetClass, selectedStudent);
+        setQaMessages(msgs);
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
   useEffect(() => {
-    fetchNotices();
-    fetchGallery();
+    setLoadingNotices(true);
+    setLoadingGallery(true);
+    fetchNotices().finally(() => setLoadingNotices(false));
+    fetchGallery().finally(() => setLoadingGallery(false));
+    fetchQa();
 
+    // Subscribe to updates & auto-poll
     const unsubscribe = subscribeToUpdates((type) => {
-      if (type === 'notices') fetchNotices();
-      if (type === 'gallery') fetchGallery();
+      if (type === 'notices' || type === 'poll') fetchNotices();
+      if (type === 'gallery' || type === 'poll') fetchGallery();
+      if (type === 'qa' || type === 'poll') fetchQa();
     });
 
     return () => unsubscribe();
-  }, [targetClass]);
+  }, [targetClass, selectedStudent]);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [qaMessages]);
 
   // Handle Notice Submit
   const handleNoticeSubmit = async (e?: React.FormEvent) => {
@@ -89,10 +119,10 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
         author: currentUser.name || `${targetClass}반 담임교사`
       });
 
-      setNotices((prev) => [created, ...prev]);
+      setNotices((prev) => [created, ...prev.filter(n => n.id !== created.id)]);
       setNoticeTitle('');
       setNoticeInput('');
-      triggerToast('공지사항이 학부모님들께 성공적으로 발송되었습니다!');
+      triggerToast('공지사항이 클라우드에 실시간으로 등록 및 발송되었습니다!');
     } catch (error) {
       console.error('Notice creation error:', error);
       triggerToast('공지사항 등록 중 오류가 발생했습니다.');
@@ -127,7 +157,7 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
 
       const uploaded = await Promise.all(uploadPromises);
       setGalleryImages((prev) => [...uploaded, ...prev]);
-      triggerToast(`${files.length}장의 사진이 성공적으로 업로드 및 연동되었습니다!`);
+      triggerToast(`${files.length}장의 사진이 클라우드에 성공적으로 업로드되었습니다!`);
     } catch (error) {
       console.error('Upload failed:', error);
       triggerToast('사진 업로드 중 오류가 발생했습니다.');
@@ -152,6 +182,32 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
     }
   };
 
+  // Send Teacher QA Message
+  const handleSendQaMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!qaInput.trim() || isSendingQa) return;
+
+    setIsSendingQa(true);
+    try {
+      const sent = await sendQaMessage({
+        class_no: targetClass,
+        student_name: selectedStudent,
+        sender_role: 'teacher',
+        sender_name: currentUser.name || '담임선생님',
+        content: qaInput.trim()
+      });
+
+      setQaMessages((prev) => [...prev, sent]);
+      setQaInput('');
+      triggerToast(`${selectedStudent} 학부모님께 답변이 실시간 전송되었습니다!`);
+    } catch (e) {
+      console.error(e);
+      triggerToast('답변 전송 중 오류가 발생했습니다.');
+    } finally {
+      setIsSendingQa(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header Banner */}
@@ -167,11 +223,10 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
               학부모 소통 관리 대시보드
             </h2>
             <p className="text-pink-100 text-xs sm:text-sm">
-              선생님께서 공지사항을 등록하거나 사진을 올리면 학부모 화면에 실시간으로 즉시 연동됩니다.
+              선생님께서 공지사항 및 1:1 답변을 남기시면 학부모 스마트폰 화면에 실시간으로 즉시 전송됩니다.
             </p>
           </div>
 
-          {/* If Head Teacher, allow switching classes */}
           {isHead && (
             <div className="bg-white/10 backdrop-blur-md p-2 rounded-2xl border border-white/20 flex items-center space-x-2">
               <span className="text-xs font-bold text-pink-100">관리 학급:</span>
@@ -205,7 +260,7 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
         {[
           { id: 'notices', label: `공지사항 (${notices.length}건)`, icon: Megaphone },
           { id: 'gallery', label: `사진첩 업로드 (${galleryImages.length}장)`, icon: Camera },
-          { id: 'qa', label: '학부모 1:1 문의 답변', icon: MessageSquareText },
+          { id: 'qa', label: `학부모 1:1 문의 답변 (${qaStudents.length}명)`, icon: MessageSquareText },
         ].map((t) => (
           <button
             key={t.id}
@@ -247,7 +302,7 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
               ></textarea>
               <div className="flex justify-between items-center pt-1">
                 <span className="text-[11px] text-slate-400">
-                  * 발송 즉시 학부모님 화면에 알림 및 목록이 실시간으로 동기화됩니다.
+                  * 발송 즉시 Supabase 클라우드에 영구 저장되며 학부모 화면에 실시간 동기화됩니다.
                 </span>
                 <button
                   onClick={handleNoticeSubmit}
@@ -407,102 +462,113 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
 
         {/* Q&A Tab */}
         {activeTab === 'qa' && (
-          <div className="grid md:grid-cols-3 gap-6 h-[500px]">
+          <div className="grid md:grid-cols-3 gap-6 h-[560px]">
             {/* Parent List */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col col-span-1">
-              <div className="p-4 border-b border-slate-100 bg-slate-50">
-                <h3 className="font-black text-sm text-slate-800">새로운 문의 (1건)</h3>
+              <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <h3 className="font-black text-sm text-slate-800">학부모 1:1 대화목록</h3>
+                <span className="text-[10px] bg-pink-100 text-pink-700 font-bold px-2 py-0.5 rounded-full">
+                  {qaStudents.length}명
+                </span>
               </div>
-              <div className="flex-1 overflow-y-auto p-2">
-                <button className="w-full text-left p-3 rounded-2xl bg-pink-50 border border-pink-200 transition-colors flex items-start space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-pink-500 text-white font-bold flex items-center justify-center shrink-0">강</div>
-                  <div>
-                    <h4 className="font-bold text-sm text-pink-900">강승엽 학부모님</h4>
-                    <p className="text-xs text-slate-600 truncate max-w-[150px]">선생님, 우리 승엽이가...</p>
-                  </div>
-                  <div className="w-2 h-2 rounded-full bg-pink-500 ml-auto mt-2 shrink-0"></div>
-                </button>
-                <button className="w-full text-left p-3 rounded-2xl hover:bg-slate-50 transition-colors flex items-start space-x-3 mt-1">
-                  <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-500 font-bold flex items-center justify-center shrink-0">김</div>
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-700">김규빈 학부모님</h4>
-                    <p className="text-xs text-slate-500 truncate max-w-[150px]">사진 예쁘게 찍어주셔서...</p>
-                  </div>
-                </button>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {qaStudents.map((st) => (
+                  <button 
+                    key={st.student_name}
+                    onClick={() => setSelectedStudent(st.student_name)}
+                    className={`w-full text-left p-3 rounded-2xl transition-colors flex items-start space-x-3 ${
+                      selectedStudent === st.student_name 
+                        ? 'bg-pink-50 border border-pink-200' 
+                        : 'hover:bg-slate-50 border border-transparent'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-pink-500 text-white font-black flex items-center justify-center shrink-0">
+                      {st.student_name.slice(0, 1)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline">
+                        <h4 className="font-bold text-sm text-slate-800 truncate">{st.student_name} 학부모님</h4>
+                        <span className="text-[10px] text-slate-400">{st.time}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{st.last_message}</p>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Chat Room */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col col-span-2">
               <div className="bg-slate-50 border-b border-slate-200 p-4 flex items-center justify-between">
-                <h4 className="font-black text-sm text-slate-900">
-                  강승엽 학부모님과의 1:1 대화
-                </h4>
-              </div>
-
-              <div className="flex-1 p-4 overflow-y-auto bg-slate-50/50 space-y-4">
-                <div className="flex flex-col space-y-2 max-w-[80%] mx-auto text-center my-6">
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 py-1 px-3 rounded-full self-center">
-                    10월 14일 수요일
+                <div>
+                  <h4 className="font-black text-sm text-slate-900">
+                    {selectedStudent} 학생 학부모님과의 1:1 대화
+                  </h4>
+                  <span className="text-[10px] text-emerald-600 font-bold flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>실시간 클라우드 동기화 중</span>
                   </span>
                 </div>
-                
-                {/* Sample Teacher Welcome Message */}
-                <div className="flex items-end justify-end space-x-2 max-w-[85%] ml-auto">
-                  <div className="bg-slate-200 p-3 rounded-2xl rounded-tr-none shadow-sm text-slate-700">
-                    <p className="text-xs leading-relaxed">
-                      학부모님 안녕하세요! 강승엽 학생 담임입니다. <br/>
-                      수학여행 중 궁금하신 점이나 급한 용무가 있으시면 이곳에 남겨주세요. 아이들을 인솔하는 중간중간 틈틈이 확인하여 답변 드리겠습니다. 🌸
-                    </p>
-                  </div>
-                </div>
+              </div>
 
-                {/* Sample User Message */}
+              <div className="flex-1 p-4 overflow-y-auto bg-slate-50/50 space-y-3">
+                {/* Default Teacher Welcome */}
                 <div className="flex items-start space-x-2 max-w-[85%]">
                   <div className="w-8 h-8 rounded-full bg-pink-100 shrink-0 flex items-center justify-center border border-pink-200">
-                    <span className="text-pink-600 font-bold text-xs">강</span>
+                    <span className="text-pink-600 font-bold text-xs">헤</span>
                   </div>
-                  <div className="bg-white p-3 rounded-2xl rounded-tl-none border border-slate-200 shadow-sm">
-                    <p className="text-xs text-slate-700 leading-relaxed">
-                      선생님, 우리 승엽이가 평소에 멀미가 좀 있어서요. 혹시 버스 앞자리에 앉을 수 있도록 배려 부탁드려도 될까요?
-                    </p>
+                  <div className="bg-white p-3.5 rounded-2xl rounded-tl-none border border-slate-200 shadow-xs text-xs text-slate-700 leading-relaxed">
+                    학부모님 안녕하세요! {selectedStudent} 학생 담임입니다. <br/>
+                    수학여행 중 궁금하신 점이나 급한 용무가 있으시면 이곳에 남겨주세요. 실시간으로 확인하여 답변 드리겠습니다. 🌸
                   </div>
                 </div>
 
-                {/* Sample Teacher Reply */}
-                <div className="flex items-end justify-end space-x-2 max-w-[85%] ml-auto">
-                  <div className="bg-pink-500 p-3 rounded-2xl rounded-tr-none shadow-sm text-white">
-                    <p className="text-xs leading-relaxed">
-                      네 어머님! 승엽이 버스 멀미약 챙겨먹었는지 확인하고, 가장 앞자리 창가 쪽으로 짝꿍과 함께 앉도록 조치했습니다. 너무 걱정 마세요~ ^^
-                    </p>
-                  </div>
-                </div>
+                {qaMessages.map((msg) => {
+                  const isTeacher = msg.sender_role === 'teacher';
+                  return (
+                    <div 
+                      key={msg.id} 
+                      className={`flex items-end space-x-2 max-w-[85%] ${isTeacher ? 'ml-auto justify-end' : ''}`}
+                    >
+                      {!isTeacher && (
+                        <div className="w-8 h-8 rounded-full bg-pink-500 text-white font-bold text-xs shrink-0 flex items-center justify-center">
+                          {selectedStudent.slice(0, 1)}
+                        </div>
+                      )}
+                      <div className={`p-3.5 rounded-2xl shadow-xs text-xs leading-relaxed ${
+                        isTeacher 
+                          ? 'bg-pink-500 text-white rounded-tr-none' 
+                          : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
+                      }`}>
+                        <div className="text-[10px] opacity-75 mb-1 font-bold">
+                          {isTeacher ? '담임교사' : `${selectedStudent} 학부모`} · {msg.time}
+                        </div>
+                        <p className="whitespace-pre-line">{msg.content}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={chatBottomRef} />
               </div>
 
               <div className="p-3 bg-white border-t border-slate-200">
                 <form 
                   className="flex items-center space-x-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if(qaInput.trim()) {
-                      triggerToast('답변이 성공적으로 전송되었습니다.');
-                      setQaInput('');
-                    }
-                  }}
+                  onSubmit={handleSendQaMessage}
                 >
                   <input
                     type="text"
                     value={qaInput}
                     onChange={(e) => setQaInput(e.target.value)}
-                    placeholder="답변을 입력하세요..."
+                    placeholder={`${selectedStudent} 학부모님께 실시간 답변 작성...`}
                     className="flex-1 bg-slate-100 border-transparent focus:border-pink-300 focus:bg-white px-4 py-2.5 rounded-full text-xs transition-all outline-none"
                   />
                   <button
                     type="submit"
-                    disabled={!qaInput.trim()}
+                    disabled={!qaInput.trim() || isSendingQa}
                     className="w-10 h-10 rounded-full bg-pink-500 disabled:bg-slate-300 text-white flex items-center justify-center shrink-0 transition-all shadow-sm hover:bg-pink-600"
                   >
-                    <Send className="w-4 h-4 ml-0.5" />
+                    {isSendingQa ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
                   </button>
                 </form>
               </div>
@@ -515,7 +581,7 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
       {selectedImage && (
         <div 
           onClick={() => setSelectedImage(null)}
-          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
         >
           <div className="relative max-w-3xl max-h-[90vh]">
             <img 
