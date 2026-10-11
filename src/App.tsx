@@ -20,10 +20,14 @@ import { AppIconModal } from './components/AppIconModal';
 import { StudentQuizView } from './components/activities/StudentQuizView';
 import { StudentPhotoMissionView } from './components/activities/StudentPhotoMissionView';
 import { TeacherActivityManagerView } from './components/activities/TeacherActivityManagerView';
+import { ActivityAlertModal, ActivityAlertData } from './components/activities/ActivityAlertModal';
+import { alertSoundPlayer, showSystemNotification, requestNotificationPermission } from './utils/alertEffects';
 import {
   getPublicNotices,
   sendPublicNotice,
   subscribeToUpdates,
+  getQuizzes,
+  getMissions,
   PublicNoticeItem,
   DEFAULT_PUBLIC_NOTICES
 } from './utils/communicationService';
@@ -90,6 +94,9 @@ export default function App() {
     }
   }, []);
 
+  // Real-time Activity Alert (Quiz & Photo Mission)
+  const [activityAlert, setActivityAlert] = useState<ActivityAlertData | null>(null);
+
   // Sync public notices periodically and via realtime broadcast
   useEffect(() => {
     const userClass = currentUser?.class_no || currentUser?.studentClass || currentUser?.myClass || 0;
@@ -113,6 +120,105 @@ export default function App() {
 
     return () => {
       unsubscribe();
+    };
+  }, [currentUser]);
+
+  // Realtime Activity Monitor (Sudden Quiz & Photo Mission Alert with Sound & Vibration)
+  useEffect(() => {
+    if (!currentUser) return;
+    const isStudentUser = currentUser.role === 'student';
+    const isTeacherUser = currentUser.role === 'teacher' || currentUser.role === 'head_teacher' || currentUser.role === 'vice_principal';
+    // We notify both students and teachers (teachers see when other teachers launch live events too)
+
+    let isFirstCheck = true;
+    let knownQuizIds = new Set<string>();
+    let knownMissionIds = new Set<string>();
+
+    const checkActivities = async () => {
+      try {
+        const [quizzes, missions] = await Promise.all([
+          getQuizzes(),
+          getMissions()
+        ]);
+
+        const currentClassNo = currentUser.studentClass || currentUser.myClass || currentUser.class_no || 0;
+
+        if (isFirstCheck) {
+          // Initialize known IDs so existing items don't trigger alerts on first load
+          quizzes.forEach(q => knownQuizIds.add(String(q.id)));
+          missions.forEach(m => knownMissionIds.add(String(m.id)));
+          isFirstCheck = false;
+          return;
+        }
+
+        // Check for new active quizzes
+        for (const q of quizzes) {
+          const qId = String(q.id);
+          if (!knownQuizIds.has(qId)) {
+            knownQuizIds.add(qId);
+            if (q.status === 'active') {
+              // Check class targeting
+              const targetAudienceMatch = q.targetAudience === 'all' || (q.classNo === currentClassNo);
+              if (targetAudienceMatch) {
+                setActivityAlert({
+                  type: 'quiz',
+                  id: qId,
+                  title: q.question,
+                  description: q.hint ? `힌트: ${q.hint}` : undefined,
+                  author: q.author || '총괄본부'
+                });
+                showSystemNotification('⚡ [돌발 퀴즈 발령] 지금 맞혀보세요!', {
+                  body: q.question,
+                  tag: `quiz-${qId}`
+                });
+                break; // Show one at a time
+              }
+            }
+          }
+        }
+
+        // Check for new active photo missions
+        for (const m of missions) {
+          const mId = String(m.id);
+          if (!knownMissionIds.has(mId)) {
+            knownMissionIds.add(mId);
+            if (m.status === 'active') {
+              const targetClassMatch = !m.classNo || m.classNo === 0 || m.classNo === currentClassNo;
+              if (targetClassMatch) {
+                setActivityAlert({
+                  type: 'mission',
+                  id: mId,
+                  title: m.title,
+                  description: m.description,
+                  points: m.points,
+                  author: m.author || '총괄본부'
+                });
+                showSystemNotification('📸 [새 사진 미션 발령] 스탬프를 획득하세요!', {
+                  body: m.title,
+                  tag: `mission-${mId}`
+                });
+                break;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Check activities error:', err);
+      }
+    };
+
+    // Initial check
+    checkActivities();
+
+    // Listen for broadcast & polling
+    const unsub = subscribeToUpdates((type) => {
+      if (type === 'activities' || type === 'poll') {
+        checkActivities();
+      }
+    });
+
+    return () => {
+      unsub();
     };
   }, [currentUser]);
 
@@ -973,6 +1079,16 @@ export default function App() {
         selectedIconId={selectedIconId}
         onSelectIcon={handleSelectIcon}
         triggerToast={triggerToast}
+      />
+
+      {/* Real-time Activity Alert Modal (Sudden Quiz & Photo Mission) */}
+      <ActivityAlertModal
+        alert={activityAlert}
+        onClose={() => setActivityAlert(null)}
+        onNavigate={(tab) => {
+          setActiveTab(tab);
+          setActivityAlert(null);
+        }}
       />
 
       {/* Toast Notification */}

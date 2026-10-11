@@ -7,6 +7,7 @@ import {
   getQuizzes, createQuiz, updateQuizStatus, getQuizSubmissions,
   getMissions, createMission, getMissionSubmissions, subscribeToUpdates
 } from '../../utils/communicationService';
+import { alertSoundPlayer } from '../../utils/alertEffects';
 
 interface TeacherActivityManagerViewProps {
   currentUser: any;
@@ -149,7 +150,19 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
           </p>
         </div>
 
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              alertSoundPlayer.playMissionAlert();
+              alertSoundPlayer.triggerVibrate();
+              triggerToast('🔔 학생 스마트폰 알림음 및 진동 테스트를 실행했습니다.');
+            }}
+            className="bg-white/20 hover:bg-white/30 text-white font-bold px-3.5 py-2.5 rounded-2xl text-xs flex items-center space-x-1.5 backdrop-blur-xs transition-all shrink-0"
+            title="학생 폰에 울릴 알림음과 진동을 미리 들어봅니다."
+          >
+            <span>🔔 알림음·진동 테스트</span>
+          </button>
+
           {activeSubTab === 'quiz' ? (
             <button
               onClick={() => setShowNewQuizModal(true)}
