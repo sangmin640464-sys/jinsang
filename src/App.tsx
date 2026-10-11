@@ -6,7 +6,7 @@ import {
   ArrowUpRight, Users, Navigation, ShieldCheck, Clock, MapPin,
   ChevronRight, CheckCircle2, MessageSquareText, UserCog, Hotel, Hospital, UploadCloud,
   Crown, BookOpen, AlertTriangle, Bell, LogOut, Bus, Home, UserX,
-  KeyRound, Download, ExternalLink, Camera, Eye, EyeOff, Search, Palette, Check, RefreshCw
+  KeyRound, Download, ExternalLink, Camera, Eye, EyeOff, Search, Palette, Check, RefreshCw, HelpCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { INITIAL_STUDENTS, StudentInfo } from './data/studentsData';
