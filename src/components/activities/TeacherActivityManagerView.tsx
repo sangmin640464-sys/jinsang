@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  HelpCircle, Camera, Plus, CheckCircle2, Trophy, Clock, X, Trash2, Send, Eye, RefreshCw, Sparkles
+  HelpCircle, Camera, Plus, CheckCircle2, Trophy, Clock, X, Trash2, Send, Eye, RefreshCw, Sparkles,
+  MessageSquare, ExternalLink, Copy, Share2
 } from 'lucide-react';
 import {
   Quiz, QuizSubmission, TripMission, MissionSubmission,
@@ -8,6 +9,7 @@ import {
   getMissions, createMission, getMissionSubmissions, subscribeToUpdates
 } from '../../utils/communicationService';
 import { alertSoundPlayer } from '../../utils/alertEffects';
+import { OPEN_KAKAO_URL } from '../../data/mapImages';
 
 interface TeacherActivityManagerViewProps {
   currentUser: any;
@@ -71,6 +73,37 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
     return () => unsub();
   }, []);
 
+  // Copy Kakao message & Open Kakao Talk room
+  const handleShareToKakao = (type: 'quiz' | 'mission', title: string, hintOrDesc?: string, points?: number) => {
+    const appUrl = 'https://jinjang.vercel.app';
+    let text = '';
+    if (type === 'quiz') {
+      text = `[진장중 수학여행 ⚡ 돌발 퀴즈 발령!]\n\nQ: ${title}\n${hintOrDesc ? `💡 힌트: ${hintOrDesc}\n` : ''}\n👉 지금 앱에서 선착순 정답을 제출하세요!\n${appUrl}`;
+    } else {
+      text = `[진장중 수학여행 📸 새로운 사진 미션!]\n\n미션: ${title}\n내용: ${hintOrDesc || ''}\n⭐ 스탬프 배점: +${points || 100}점\n\n👉 지금 미션 사진을 찍어 앱에 인증하세요!\n${appUrl}`;
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      }
+    } catch (e) {}
+
+    // Try Web Share API (native KakaoTalk picker on mobile)
+    if (navigator.share) {
+      navigator.share({
+        title: type === 'quiz' ? '진장중 돌발 퀴즈 발령' : '진장중 사진 미션 발령',
+        text: text,
+        url: appUrl
+      }).catch(() => {
+        window.open(OPEN_KAKAO_URL, '_blank');
+      });
+    } else {
+      window.open(OPEN_KAKAO_URL, '_blank');
+    }
+    triggerToast('💬 카톡 안내 문구가 복사되었으며 오픈채팅방으로 이동합니다.');
+  };
+
   // Handle New Quiz
   const handleCreateQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,11 +112,14 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
       return;
     }
 
+    const questionText = newQuizQuestion.trim();
+    const hintText = newQuizHint.trim();
+
     try {
       await createQuiz({
-        question: newQuizQuestion.trim(),
+        question: questionText,
         answer: newQuizAnswer.trim(),
-        hint: newQuizHint.trim(),
+        hint: hintText,
         status: 'active',
         targetAudience: newQuizTarget,
         classNo: newQuizTarget === 'all' ? 0 : (currentUser?.myClass || 0),
@@ -96,6 +132,11 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
       setNewQuizHint('');
       setShowNewQuizModal(false);
       loadAll();
+
+      // Offer instant Kakao Talk broadcast
+      if (confirm('📢 [카카오톡 공지 알림]\n\n학생들 휴대폰이 꺼져 있어도 알 수 있도록,\n오픈 카카오톡방에 퀴즈 알림 문구를 바로 전송하시겠습니까?')) {
+        handleShareToKakao('quiz', questionText, hintText);
+      }
     } catch (e) {
       triggerToast('퀴즈 출제 중 오류가 발생했습니다.');
     }
@@ -109,11 +150,15 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
       return;
     }
 
+    const titleText = newMissionTitle.trim();
+    const descText = newMissionDesc.trim();
+    const pts = newMissionPoints;
+
     try {
       await createMission({
-        title: newMissionTitle.trim(),
-        description: newMissionDesc.trim(),
-        points: newMissionPoints,
+        title: titleText,
+        description: descText,
+        points: pts,
         status: 'active',
         classNo: 0,
         author: `${currentUser?.name} 선생님`
@@ -124,6 +169,11 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
       setNewMissionDesc('');
       setShowNewMissionModal(false);
       loadAll();
+
+      // Offer instant Kakao Talk broadcast
+      if (confirm('📢 [카카오톡 공지 알림]\n\n학생들 휴대폰이 꺼져 있어도 알 수 있도록,\n오픈 카카오톡방에 새 사진 미션 공지를 바로 전송하시겠습니까?')) {
+        handleShareToKakao('mission', titleText, descText, pts);
+      }
     } catch (e) {
       triggerToast('미션 등록 중 오류가 발생했습니다.');
     }
@@ -277,7 +327,16 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
                     </h3>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleShareToKakao('quiz', currentQuiz.question, currentQuiz.hint)}
+                      className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-black transition-all flex items-center space-x-1 shadow-xs"
+                      title="카톡 오픈채팅방에 퀴즈 알림을 바로 공유합니다."
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>카톡방 알림 전송</span>
+                    </button>
+
                     {currentQuiz.status === 'active' ? (
                       <button
                         onClick={async () => {
@@ -406,7 +465,17 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
                   </p>
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span>출제: {m.author}</span>
-                    <span className="font-bold text-indigo-600">제출된 사진: {subs.length}장</span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleShareToKakao('mission', m.title, m.description, m.points)}
+                        className="px-2.5 py-1 rounded-xl bg-pink-100 hover:bg-pink-200 text-pink-900 text-[11px] font-black transition-colors flex items-center space-x-1"
+                        title="카톡 오픈채팅방에 미션 알림을 바로 공유합니다."
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>카톡 공유</span>
+                      </button>
+                      <span className="font-bold text-indigo-600">제출 {subs.length}장</span>
+                    </div>
                   </div>
                 </div>
               );
