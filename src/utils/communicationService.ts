@@ -78,7 +78,7 @@ const getBroadcastChannel = () => {
   return null;
 };
 
-export const broadcastUpdate = (type: 'notices' | 'gallery' | 'qa') => {
+export const broadcastUpdate = (type: 'notices' | 'gallery' | 'qa' | 'activities') => {
   try {
     const channel = getBroadcastChannel();
     if (channel) {
@@ -103,6 +103,7 @@ export const subscribeToUpdates = (callback: (type: string) => void) => {
     if (e.key === STORAGE_KEY_NOTICES) callback('notices');
     if (e.key === STORAGE_KEY_GALLERY) callback('gallery');
     if (e.key === STORAGE_KEY_QA) callback('qa');
+    if (e.key?.startsWith('jj_quiz') || e.key?.startsWith('jj_mission')) callback('activities');
   };
 
   if (channel) {
@@ -701,4 +702,431 @@ export const sendQaMessage = async (msg: {
 
   broadcastUpdate('qa');
   return newMsg;
+};
+
+// ----------------- 돌발 퀴즈 (SURPRISE QUIZ) -----------------
+export interface Quiz {
+  id: string;
+  question: string;
+  answer: string;
+  status: 'active' | 'closed' | 'pending';
+  targetAudience: 'all' | 'class';
+  classNo?: number;
+  author: string;
+  timestamp: string;
+  hint?: string;
+}
+
+export interface QuizSubmission {
+  id: string;
+  quizId: string;
+  userId: string | number;
+  userName: string;
+  userClass: number;
+  answer: string;
+  isCorrect: boolean;
+  timestamp: string;
+}
+
+const STORAGE_KEY_QUIZZES = 'jj_quizzes_v1';
+const STORAGE_KEY_QUIZ_SUBMISSIONS = 'jj_quiz_submissions_v1';
+
+export const DEFAULT_QUIZZES: Quiz[] = [
+  {
+    id: 'quiz-init-1',
+    question: '우리가 2일차에 방문할 테마파크의 상징이자 대표 놀이기구인 성(Castle)이 있는 곳의 이름은 무엇일까요?',
+    answer: '매직아일랜드',
+    status: 'active',
+    targetAudience: 'all',
+    author: '총괄본부',
+    timestamp: new Date().toISOString(),
+    hint: '매직○○○ (힌트: 4글자)'
+  }
+];
+
+export const getQuizzes = async (): Promise<Quiz[]> => {
+  let remoteQuizzes: Quiz[] = [];
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .select('*')
+      .like('title', '__QUIZ__:%')
+      .order('created_at', { ascending: false });
+
+    if (!error && data && Array.isArray(data)) {
+      remoteQuizzes = data.map((item) => {
+        try {
+          const parsed = JSON.parse(item.content);
+          return {
+            id: String(item.id),
+            ...parsed,
+            timestamp: item.created_at || parsed.timestamp
+          };
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean) as Quiz[];
+    }
+  } catch (e) {
+    console.warn('Supabase quiz fetch error:', e);
+  }
+
+  let localQuizzes: Quiz[] = [];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_QUIZZES);
+    if (saved) localQuizzes = JSON.parse(saved);
+  } catch (e) {}
+
+  const map = new Map<string, Quiz>();
+  DEFAULT_QUIZZES.forEach((q) => map.set(q.id, q));
+  localQuizzes.forEach((q) => map.set(q.id, q));
+  remoteQuizzes.forEach((q) => map.set(q.id, q));
+
+  return Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+};
+
+export const createQuiz = async (quiz: Omit<Quiz, 'id' | 'timestamp'>): Promise<Quiz> => {
+  const newQuiz: Quiz = {
+    ...quiz,
+    id: `quiz_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .insert([
+        {
+          class_no: newQuiz.classNo || 0,
+          title: `__QUIZ__:${newQuiz.targetAudience}:${newQuiz.status}`,
+          content: JSON.stringify(newQuiz),
+          date: '돌발퀴즈',
+          author: newQuiz.author
+        }
+      ])
+      .select();
+
+    if (!error && data && data[0]) {
+      newQuiz.id = String(data[0].id);
+    }
+  } catch (e) {
+    console.warn('Supabase quiz insert error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_QUIZZES);
+    const list: Quiz[] = saved ? JSON.parse(saved) : [];
+    localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify([newQuiz, ...list]));
+  } catch (e) {}
+
+  broadcastUpdate('activities');
+  return newQuiz;
+};
+
+export const updateQuizStatus = async (quizId: string, status: 'active' | 'closed'): Promise<void> => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_QUIZZES);
+    if (saved) {
+      const list: Quiz[] = JSON.parse(saved);
+      const updated = list.map((q) => (q.id === quizId ? { ...q, status } : q));
+      localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify(updated));
+    }
+  } catch (e) {}
+
+  broadcastUpdate('activities');
+};
+
+export const getQuizSubmissions = async (quizId?: string): Promise<QuizSubmission[]> => {
+  let remoteSubmissions: QuizSubmission[] = [];
+  try {
+    let query = supabase
+      .from('class_notices')
+      .select('*')
+      .like('title', '__QUIZ_SUB__:%')
+      .order('created_at', { ascending: true });
+
+    const { data, error } = await query;
+    if (!error && data && Array.isArray(data)) {
+      remoteSubmissions = data.map((item) => {
+        try {
+          const parsed = JSON.parse(item.content);
+          return {
+            id: String(item.id),
+            ...parsed,
+            timestamp: item.created_at || parsed.timestamp
+          };
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean) as QuizSubmission[];
+    }
+  } catch (e) {
+    console.warn('Supabase quiz sub fetch error:', e);
+  }
+
+  let localSubmissions: QuizSubmission[] = [];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_QUIZ_SUBMISSIONS);
+    if (saved) localSubmissions = JSON.parse(saved);
+  } catch (e) {}
+
+  const map = new Map<string, QuizSubmission>();
+  localSubmissions.forEach((s) => map.set(s.id, s));
+  remoteSubmissions.forEach((s) => map.set(s.id, s));
+
+  const all = Array.from(map.values()).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  if (quizId) {
+    return all.filter((s) => s.quizId === quizId);
+  }
+  return all;
+};
+
+export const submitQuizAnswer = async (sub: Omit<QuizSubmission, 'id' | 'timestamp'>): Promise<QuizSubmission> => {
+  const newSub: QuizSubmission = {
+    ...sub,
+    id: `qsub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .insert([
+        {
+          class_no: newSub.userClass || 0,
+          title: `__QUIZ_SUB__:${newSub.quizId}:${newSub.isCorrect ? 'O' : 'X'}`,
+          content: JSON.stringify(newSub),
+          date: '답안제출',
+          author: newSub.userName
+        }
+      ])
+      .select();
+
+    if (!error && data && data[0]) {
+      newSub.id = String(data[0].id);
+    }
+  } catch (e) {
+    console.warn('Supabase quiz sub error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_QUIZ_SUBMISSIONS);
+    const list: QuizSubmission[] = saved ? JSON.parse(saved) : [];
+    localStorage.setItem(STORAGE_KEY_QUIZ_SUBMISSIONS, JSON.stringify([...list, newSub]));
+  } catch (e) {}
+
+  broadcastUpdate('activities');
+  return newSub;
+};
+
+// ----------------- 사진 미션 (PHOTO MISSION) -----------------
+export interface TripMission {
+  id: string;
+  title: string;
+  description: string;
+  points: number; // 미션 완료 스탬프 점수
+  status: 'active' | 'closed';
+  classNo?: number; // 0: 전체, 1~6: 특정 반
+  author: string;
+  timestamp: string;
+}
+
+export interface MissionSubmission {
+  id: string;
+  missionId: string;
+  userId: string | number;
+  userName: string;
+  userClass: number;
+  imageUrl: string;
+  comment?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  timestamp: string;
+}
+
+const STORAGE_KEY_MISSIONS = 'jj_missions_v1';
+const STORAGE_KEY_MISSION_SUBMISSIONS = 'jj_mission_submissions_v1';
+
+export const DEFAULT_MISSIONS: TripMission[] = [
+  {
+    id: 'mission-sample-1',
+    title: '롯데월드 회전목마 앞 인증샷 🎠',
+    description: '친구들과 함께 롯데월드 대표 포토존인 회전목마 앞에서 밝은 미소로 인증 사진을 찍어 올려주세요!',
+    points: 100,
+    status: 'active',
+    classNo: 0,
+    author: '총괄본부',
+    timestamp: new Date().toISOString()
+  },
+  {
+    id: 'mission-sample-2',
+    title: '버스 이동 중 안전벨트 착용 인증 🚌',
+    description: '안전하고 즐거운 이동을 위해 안전벨트를 단정히 착용한 모습을 찍어 제출하세요.',
+    points: 50,
+    status: 'active',
+    classNo: 0,
+    author: '총괄본부',
+    timestamp: new Date().toISOString()
+  }
+];
+
+export const getMissions = async (): Promise<TripMission[]> => {
+  let remoteMissions: TripMission[] = [];
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .select('*')
+      .like('title', '__MISSION__:%')
+      .order('created_at', { ascending: false });
+
+    if (!error && data && Array.isArray(data)) {
+      remoteMissions = data.map((item) => {
+        try {
+          const parsed = JSON.parse(item.content);
+          return {
+            id: String(item.id),
+            ...parsed,
+            timestamp: item.created_at || parsed.timestamp
+          };
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean) as TripMission[];
+    }
+  } catch (e) {
+    console.warn('Supabase mission fetch error:', e);
+  }
+
+  let localMissions: TripMission[] = [];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_MISSIONS);
+    if (saved) localMissions = JSON.parse(saved);
+  } catch (e) {}
+
+  const map = new Map<string, TripMission>();
+  DEFAULT_MISSIONS.forEach((m) => map.set(m.id, m));
+  localMissions.forEach((m) => map.set(m.id, m));
+  remoteMissions.forEach((m) => map.set(m.id, m));
+
+  return Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+};
+
+export const createMission = async (mission: Omit<TripMission, 'id' | 'timestamp'>): Promise<TripMission> => {
+  const newMission: TripMission = {
+    ...mission,
+    id: `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .insert([
+        {
+          class_no: newMission.classNo || 0,
+          title: `__MISSION__:${newMission.status}`,
+          content: JSON.stringify(newMission),
+          date: '사진미션',
+          author: newMission.author
+        }
+      ])
+      .select();
+
+    if (!error && data && data[0]) {
+      newMission.id = String(data[0].id);
+    }
+  } catch (e) {
+    console.warn('Supabase mission insert error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_MISSIONS);
+    const list: TripMission[] = saved ? JSON.parse(saved) : [];
+    localStorage.setItem(STORAGE_KEY_MISSIONS, JSON.stringify([newMission, ...list]));
+  } catch (e) {}
+
+  broadcastUpdate('activities');
+  return newMission;
+};
+
+export const getMissionSubmissions = async (missionId?: string): Promise<MissionSubmission[]> => {
+  let remoteSubmissions: MissionSubmission[] = [];
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .select('*')
+      .like('title', '__MSUB__:%')
+      .order('created_at', { ascending: false });
+
+    if (!error && data && Array.isArray(data)) {
+      remoteSubmissions = data.map((item) => {
+        try {
+          const parsed = JSON.parse(item.content);
+          return {
+            id: String(item.id),
+            ...parsed,
+            timestamp: item.created_at || parsed.timestamp
+          };
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean) as MissionSubmission[];
+    }
+  } catch (e) {
+    console.warn('Supabase mission submission fetch error:', e);
+  }
+
+  let localSubmissions: MissionSubmission[] = [];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_MISSION_SUBMISSIONS);
+    if (saved) localSubmissions = JSON.parse(saved);
+  } catch (e) {}
+
+  const map = new Map<string, MissionSubmission>();
+  localSubmissions.forEach((s) => map.set(s.id, s));
+  remoteSubmissions.forEach((s) => map.set(s.id, s));
+
+  const all = Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  if (missionId) {
+    return all.filter((s) => s.missionId === missionId);
+  }
+  return all;
+};
+
+export const submitMissionPhoto = async (sub: Omit<MissionSubmission, 'id' | 'timestamp'>): Promise<MissionSubmission> => {
+  const newSub: MissionSubmission = {
+    ...sub,
+    id: `msub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .insert([
+        {
+          class_no: newSub.userClass || 0,
+          title: `__MSUB__:${newSub.missionId}:${newSub.status}`,
+          content: JSON.stringify(newSub),
+          date: '사진미션제출',
+          author: newSub.userName
+        }
+      ])
+      .select();
+
+    if (!error && data && data[0]) {
+      newSub.id = String(data[0].id);
+    }
+  } catch (e) {
+    console.warn('Supabase mission sub insert error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_MISSION_SUBMISSIONS);
+    const list: MissionSubmission[] = saved ? JSON.parse(saved) : [];
+    localStorage.setItem(STORAGE_KEY_MISSION_SUBMISSIONS, JSON.stringify([newSub, ...list]));
+  } catch (e) {}
+
+  broadcastUpdate('activities');
+  broadcastUpdate('gallery');
+  return newSub;
 };

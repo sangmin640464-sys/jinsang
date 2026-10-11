@@ -17,6 +17,9 @@ import { StudentGuideView } from './components/StudentGuideView';
 import { ParentCommunicationView } from './components/ParentCommunicationView';
 import { TeacherParentCommunicationView } from './components/TeacherParentCommunicationView';
 import { AppIconModal } from './components/AppIconModal';
+import { StudentQuizView } from './components/activities/StudentQuizView';
+import { StudentPhotoMissionView } from './components/activities/StudentPhotoMissionView';
+import { TeacherActivityManagerView } from './components/activities/TeacherActivityManagerView';
 import {
   getPublicNotices,
   sendPublicNotice,
@@ -237,6 +240,8 @@ export default function App() {
   // Navigation Items
   const studentNavItems = [
     { icon: <LayoutDashboard className="w-4 h-4" />, label: '수학여행 학생 안내서', tab: 'guide', badge: '학생전용' },
+    { icon: <HelpCircle className="w-4 h-4 text-amber-500" />, label: '실시간 돌발 퀴즈', tab: 'quiz', badge: '라이브' },
+    { icon: <Camera className="w-4 h-4 text-pink-500" />, label: '사진 인증 미션', tab: 'photo_mission', badge: '스탬프' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전', tab: 'emergency' },
   ];
@@ -245,6 +250,7 @@ export default function App() {
     { icon: <LayoutDashboard className="w-4 h-4" />, label: isHead ? '전체 현황 대시보드' : '내 학급 대시보드', tab: 'dashboard' },
     { icon: <UserCheck className="w-4 h-4" />, label: isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`, tab: 'attendance' },
     ...(isHead ? [{ icon: <UsersRound className="w-4 h-4" />, label: '전 학급 탑승 종합 관제', tab: 'classes', badge: '총괄' }] : []),
+    { icon: <Sparkles className="w-4 h-4 text-amber-500" />, label: '돌발 퀴즈 & 사진 미션 관제', tab: 'activities_control', badge: '체육시스템이식' },
     { icon: <MessageSquareText className="w-4 h-4 text-pink-500" />, label: '학부모 소통 관리 (시범)', tab: 'parent_communication', badge: '신규' },
     { icon: <BookOpen className="w-4 h-4" />, label: '학생 종합 안내서 조회', tab: 'guide' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
@@ -475,6 +481,9 @@ export default function App() {
                 {activeTab === 'dashboard' && (isHead ? '전체 학급 통합 대시보드' : `${currentUser.myClass}반 학급 대시보드`)}
                 {activeTab === 'attendance' && (isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`)}
                 {activeTab === 'classes' && '전 학급 탑승 종합 관제 (총괄)'}
+                {activeTab === 'activities_control' && '돌발 퀴즈 & 사진 미션 인솔 관제'}
+                {activeTab === 'quiz' && '실시간 돌발 퀴즈 (라이브)'}
+                {activeTab === 'photo_mission' && '수학여행 사진 인증 미션'}
                 {activeTab === 'guide' && (isStudent ? '학생 스마트 안내서' : '학생 안내서 종합 조회')}
                 {activeTab === 'schedule' && '수학여행세부일정표'}
                 {activeTab === 'ai' && 'AI 인솔 어시스턴트'}
@@ -564,6 +573,18 @@ export default function App() {
               onBoardingToggle={handleBoardingToggle}
               triggerToast={triggerToast}
             />
+          )}
+
+          {activeTab === 'quiz' && (
+            <StudentQuizView currentUser={currentUser} triggerToast={triggerToast} />
+          )}
+
+          {activeTab === 'photo_mission' && (
+            <StudentPhotoMissionView currentUser={currentUser} triggerToast={triggerToast} />
+          )}
+
+          {activeTab === 'activities_control' && !isStudent && !isParent && (
+            <TeacherActivityManagerView currentUser={currentUser} triggerToast={triggerToast} />
           )}
 
           {activeTab === 'communication' && isParent && (
@@ -662,14 +683,14 @@ export default function App() {
                 className={`flex flex-col items-center p-1 ${activeTab === 'guide' ? 'text-emerald-600 font-black' : 'text-slate-400'}`}
               >
                 <BookOpen className="w-5 h-5 mb-0.5" />
-                <span>학생안내서</span>
+                <span>안내서</span>
               </button>
               <button
-                onClick={() => setActiveTab('schedule')}
-                className={`flex flex-col items-center p-1 ${activeTab === 'schedule' ? 'text-emerald-600 font-black' : 'text-slate-400'}`}
+                onClick={() => setActiveTab('quiz')}
+                className={`flex flex-col items-center p-1 ${activeTab === 'quiz' ? 'text-amber-500 font-black' : 'text-slate-400'}`}
               >
-                <CalendarRange className="w-5 h-5 mb-0.5" />
-                <span>일정표</span>
+                <HelpCircle className="w-5 h-5 mb-0.5" />
+                <span>돌발퀴즈</span>
               </button>
               <button
                 onClick={() => {
@@ -683,11 +704,11 @@ export default function App() {
                 <span className="font-black">탑승체크</span>
               </button>
               <button
-                onClick={() => setActiveTab('emergency')}
-                className={`flex flex-col items-center p-1 ${activeTab === 'emergency' ? 'text-emerald-600 font-black' : 'text-slate-400'}`}
+                onClick={() => setActiveTab('photo_mission')}
+                className={`flex flex-col items-center p-1 ${activeTab === 'photo_mission' ? 'text-pink-600 font-black' : 'text-slate-400'}`}
               >
-                <ShieldAlert className="w-5 h-5 mb-0.5" />
-                <span>비상연락</span>
+                <Camera className="w-5 h-5 mb-0.5" />
+                <span>사진미션</span>
               </button>
               <button
                 onClick={() => setSidebarOpen(true)}
