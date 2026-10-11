@@ -747,25 +747,46 @@ export const DEFAULT_QUIZZES: Quiz[] = [
 export const getQuizzes = async (): Promise<Quiz[]> => {
   let remoteQuizzes: Quiz[] = [];
   try {
+    // 1. 전용 테이블 trip_quizzes 조회
     const { data, error } = await supabase
-      .from('class_notices')
+      .from('trip_quizzes')
       .select('*')
-      .like('title', '__QUIZ__:%')
       .order('created_at', { ascending: false });
 
     if (!error && data && Array.isArray(data)) {
-      remoteQuizzes = data.map((item) => {
-        try {
-          const parsed = JSON.parse(item.content);
-          return {
-            id: String(item.id),
-            ...parsed,
-            timestamp: item.created_at || parsed.timestamp
-          };
-        } catch (e) {
-          return null;
-        }
-      }).filter(Boolean) as Quiz[];
+      remoteQuizzes = data.map((item) => ({
+        id: String(item.id),
+        question: item.question,
+        answer: item.answer,
+        hint: item.hint,
+        status: item.status || 'active',
+        targetAudience: item.target_audience || 'all',
+        classNo: item.class_no || 0,
+        author: item.author || '총괄본부',
+        timestamp: item.created_at
+      }));
+    } else {
+      // 2. Fallback: 기존 class_notices 테이블 조회
+      const { data: fallbackData } = await supabase
+        .from('class_notices')
+        .select('*')
+        .like('title', '__QUIZ__:%')
+        .order('created_at', { ascending: false });
+
+      if (fallbackData && Array.isArray(fallbackData)) {
+        remoteQuizzes = fallbackData.map((item) => {
+          try {
+            const parsed = JSON.parse(item.content);
+            return {
+              id: String(item.id),
+              ...parsed,
+              timestamp: item.created_at || parsed.timestamp
+            };
+          } catch (e) {
+            return null;
+          }
+        }).filter(Boolean) as Quiz[];
+      }
     }
   } catch (e) {
     console.warn('Supabase quiz fetch error:', e);
@@ -793,14 +814,17 @@ export const createQuiz = async (quiz: Omit<Quiz, 'id' | 'timestamp'>): Promise<
   };
 
   try {
+    // 1. 전용 테이블 trip_quizzes 에 insert
     const { data, error } = await supabase
-      .from('class_notices')
+      .from('trip_quizzes')
       .insert([
         {
+          question: newQuiz.question,
+          answer: newQuiz.answer,
+          hint: newQuiz.hint || null,
+          status: newQuiz.status,
+          target_audience: newQuiz.targetAudience,
           class_no: newQuiz.classNo || 0,
-          title: `__QUIZ__:${newQuiz.targetAudience}:${newQuiz.status}`,
-          content: JSON.stringify(newQuiz),
-          date: '돌발퀴즈',
           author: newQuiz.author
         }
       ])
@@ -808,6 +832,17 @@ export const createQuiz = async (quiz: Omit<Quiz, 'id' | 'timestamp'>): Promise<
 
     if (!error && data && data[0]) {
       newQuiz.id = String(data[0].id);
+    } else {
+      // 2. Fallback: class_notices 에 insert
+      await supabase.from('class_notices').insert([
+        {
+          class_no: newQuiz.classNo || 0,
+          title: `__QUIZ__:${newQuiz.targetAudience}:${newQuiz.status}`,
+          content: JSON.stringify(newQuiz),
+          date: '돌발퀴즈',
+          author: newQuiz.author
+        }
+      ]);
     }
   } catch (e) {
     console.warn('Supabase quiz insert error:', e);
@@ -825,6 +860,10 @@ export const createQuiz = async (quiz: Omit<Quiz, 'id' | 'timestamp'>): Promise<
 
 export const updateQuizStatus = async (quizId: string, status: 'active' | 'closed'): Promise<void> => {
   try {
+    await supabase.from('trip_quizzes').update({ status }).eq('id', quizId);
+  } catch (e) {}
+
+  try {
     const saved = localStorage.getItem(STORAGE_KEY_QUIZZES);
     if (saved) {
       const list: Quiz[] = JSON.parse(saved);
@@ -839,26 +878,50 @@ export const updateQuizStatus = async (quizId: string, status: 'active' | 'close
 export const getQuizSubmissions = async (quizId?: string): Promise<QuizSubmission[]> => {
   let remoteSubmissions: QuizSubmission[] = [];
   try {
+    // 1. 전용 테이블 trip_quiz_submissions
     let query = supabase
-      .from('class_notices')
+      .from('trip_quiz_submissions')
       .select('*')
-      .like('title', '__QUIZ_SUB__:%')
       .order('created_at', { ascending: true });
+
+    if (quizId) {
+      query = query.eq('quiz_id', quizId);
+    }
 
     const { data, error } = await query;
     if (!error && data && Array.isArray(data)) {
-      remoteSubmissions = data.map((item) => {
-        try {
-          const parsed = JSON.parse(item.content);
-          return {
-            id: String(item.id),
-            ...parsed,
-            timestamp: item.created_at || parsed.timestamp
-          };
-        } catch (e) {
-          return null;
-        }
-      }).filter(Boolean) as QuizSubmission[];
+      remoteSubmissions = data.map((item) => ({
+        id: String(item.id),
+        quizId: String(item.quiz_id),
+        userId: String(item.user_id),
+        userName: item.user_name,
+        userClass: Number(item.user_class),
+        answer: item.answer,
+        isCorrect: Boolean(item.is_correct),
+        timestamp: item.created_at
+      }));
+    } else {
+      // 2. Fallback class_notices
+      const { data: fallbackData } = await supabase
+        .from('class_notices')
+        .select('*')
+        .like('title', '__QUIZ_SUB__:%')
+        .order('created_at', { ascending: true });
+
+      if (fallbackData && Array.isArray(fallbackData)) {
+        remoteSubmissions = fallbackData.map((item) => {
+          try {
+            const parsed = JSON.parse(item.content);
+            return {
+              id: String(item.id),
+              ...parsed,
+              timestamp: item.created_at || parsed.timestamp
+            };
+          } catch (e) {
+            return null;
+          }
+        }).filter(Boolean) as QuizSubmission[];
+      }
     }
   } catch (e) {
     console.warn('Supabase quiz sub fetch error:', e);
@@ -889,9 +952,26 @@ export const submitQuizAnswer = async (sub: Omit<QuizSubmission, 'id' | 'timesta
   };
 
   try {
+    // 1. 전용 테이블 trip_quiz_submissions
     const { data, error } = await supabase
-      .from('class_notices')
+      .from('trip_quiz_submissions')
       .insert([
+        {
+          quiz_id: String(newSub.quizId),
+          user_id: String(newSub.userId),
+          user_name: newSub.userName,
+          user_class: Number(newSub.userClass || 0),
+          answer: newSub.answer,
+          is_correct: newSub.isCorrect
+        }
+      ])
+      .select();
+
+    if (!error && data && data[0]) {
+      newSub.id = String(data[0].id);
+    } else {
+      // 2. Fallback
+      await supabase.from('class_notices').insert([
         {
           class_no: newSub.userClass || 0,
           title: `__QUIZ_SUB__:${newSub.quizId}:${newSub.isCorrect ? 'O' : 'X'}`,
@@ -899,11 +979,7 @@ export const submitQuizAnswer = async (sub: Omit<QuizSubmission, 'id' | 'timesta
           date: '답안제출',
           author: newSub.userName
         }
-      ])
-      .select();
-
-    if (!error && data && data[0]) {
-      newSub.id = String(data[0].id);
+      ]);
     }
   } catch (e) {
     console.warn('Supabase quiz sub error:', e);
@@ -972,25 +1048,45 @@ export const DEFAULT_MISSIONS: TripMission[] = [
 export const getMissions = async (): Promise<TripMission[]> => {
   let remoteMissions: TripMission[] = [];
   try {
+    // 1. 전용 테이블 trip_missions
     const { data, error } = await supabase
-      .from('class_notices')
+      .from('trip_missions')
       .select('*')
-      .like('title', '__MISSION__:%')
       .order('created_at', { ascending: false });
 
     if (!error && data && Array.isArray(data)) {
-      remoteMissions = data.map((item) => {
-        try {
-          const parsed = JSON.parse(item.content);
-          return {
-            id: String(item.id),
-            ...parsed,
-            timestamp: item.created_at || parsed.timestamp
-          };
-        } catch (e) {
-          return null;
-        }
-      }).filter(Boolean) as TripMission[];
+      remoteMissions = data.map((item) => ({
+        id: String(item.id),
+        title: item.title,
+        description: item.description,
+        points: item.points || 100,
+        status: item.status || 'active',
+        classNo: item.class_no || 0,
+        author: item.author || '총괄본부',
+        timestamp: item.created_at
+      }));
+    } else {
+      // 2. Fallback
+      const { data: fallbackData } = await supabase
+        .from('class_notices')
+        .select('*')
+        .like('title', '__MISSION__:%')
+        .order('created_at', { ascending: false });
+
+      if (fallbackData && Array.isArray(fallbackData)) {
+        remoteMissions = fallbackData.map((item) => {
+          try {
+            const parsed = JSON.parse(item.content);
+            return {
+              id: String(item.id),
+              ...parsed,
+              timestamp: item.created_at || parsed.timestamp
+            };
+          } catch (e) {
+            return null;
+          }
+        }).filter(Boolean) as TripMission[];
+      }
     }
   } catch (e) {
     console.warn('Supabase mission fetch error:', e);
@@ -1018,14 +1114,16 @@ export const createMission = async (mission: Omit<TripMission, 'id' | 'timestamp
   };
 
   try {
+    // 1. 전용 테이블 trip_missions
     const { data, error } = await supabase
-      .from('class_notices')
+      .from('trip_missions')
       .insert([
         {
+          title: newMission.title,
+          description: newMission.description,
+          points: newMission.points,
+          status: newMission.status,
           class_no: newMission.classNo || 0,
-          title: `__MISSION__:${newMission.status}`,
-          content: JSON.stringify(newMission),
-          date: '사진미션',
           author: newMission.author
         }
       ])
@@ -1033,6 +1131,17 @@ export const createMission = async (mission: Omit<TripMission, 'id' | 'timestamp
 
     if (!error && data && data[0]) {
       newMission.id = String(data[0].id);
+    } else {
+      // 2. Fallback
+      await supabase.from('class_notices').insert([
+        {
+          class_no: newMission.classNo || 0,
+          title: `__MISSION__:${newMission.status}`,
+          content: JSON.stringify(newMission),
+          date: '사진미션',
+          author: newMission.author
+        }
+      ]);
     }
   } catch (e) {
     console.warn('Supabase mission insert error:', e);
@@ -1051,25 +1160,51 @@ export const createMission = async (mission: Omit<TripMission, 'id' | 'timestamp
 export const getMissionSubmissions = async (missionId?: string): Promise<MissionSubmission[]> => {
   let remoteSubmissions: MissionSubmission[] = [];
   try {
-    const { data, error } = await supabase
-      .from('class_notices')
+    // 1. 전용 테이블 trip_mission_submissions
+    let query = supabase
+      .from('trip_mission_submissions')
       .select('*')
-      .like('title', '__MSUB__:%')
       .order('created_at', { ascending: false });
 
+    if (missionId) {
+      query = query.eq('mission_id', missionId);
+    }
+
+    const { data, error } = await query;
     if (!error && data && Array.isArray(data)) {
-      remoteSubmissions = data.map((item) => {
-        try {
-          const parsed = JSON.parse(item.content);
-          return {
-            id: String(item.id),
-            ...parsed,
-            timestamp: item.created_at || parsed.timestamp
-          };
-        } catch (e) {
-          return null;
-        }
-      }).filter(Boolean) as MissionSubmission[];
+      remoteSubmissions = data.map((item) => ({
+        id: String(item.id),
+        missionId: String(item.mission_id),
+        userId: String(item.user_id),
+        userName: item.user_name,
+        userClass: Number(item.user_class),
+        imageUrl: item.image_url,
+        comment: item.comment,
+        status: item.status || 'approved',
+        timestamp: item.created_at
+      }));
+    } else {
+      // 2. Fallback
+      const { data: fallbackData } = await supabase
+        .from('class_notices')
+        .select('*')
+        .like('title', '__MSUB__:%')
+        .order('created_at', { ascending: false });
+
+      if (fallbackData && Array.isArray(fallbackData)) {
+        remoteSubmissions = fallbackData.map((item) => {
+          try {
+            const parsed = JSON.parse(item.content);
+            return {
+              id: String(item.id),
+              ...parsed,
+              timestamp: item.created_at || parsed.timestamp
+            };
+          } catch (e) {
+            return null;
+          }
+        }).filter(Boolean) as MissionSubmission[];
+      }
     }
   } catch (e) {
     console.warn('Supabase mission submission fetch error:', e);
@@ -1100,9 +1235,27 @@ export const submitMissionPhoto = async (sub: Omit<MissionSubmission, 'id' | 'ti
   };
 
   try {
+    // 1. 전용 테이블 trip_mission_submissions
     const { data, error } = await supabase
-      .from('class_notices')
+      .from('trip_mission_submissions')
       .insert([
+        {
+          mission_id: String(newSub.missionId),
+          user_id: String(newSub.userId),
+          user_name: newSub.userName,
+          user_class: Number(newSub.userClass || 0),
+          image_url: newSub.imageUrl,
+          comment: newSub.comment || null,
+          status: newSub.status
+        }
+      ])
+      .select();
+
+    if (!error && data && data[0]) {
+      newSub.id = String(data[0].id);
+    } else {
+      // 2. Fallback
+      await supabase.from('class_notices').insert([
         {
           class_no: newSub.userClass || 0,
           title: `__MSUB__:${newSub.missionId}:${newSub.status}`,
@@ -1110,15 +1263,22 @@ export const submitMissionPhoto = async (sub: Omit<MissionSubmission, 'id' | 'ti
           date: '사진미션제출',
           author: newSub.userName
         }
-      ])
-      .select();
-
-    if (!error && data && data[0]) {
-      newSub.id = String(data[0].id);
+      ]);
     }
   } catch (e) {
     console.warn('Supabase mission sub insert error:', e);
   }
+
+  // 3. 학부모 사진첩(class_galleries)에도 자동 동시 등록
+  try {
+    await supabase.from('class_galleries').insert([
+      {
+        class_no: newSub.userClass || 0,
+        image_url: newSub.imageUrl,
+        author: `${newSub.userName} 학생 (미션인증)`
+      }
+    ]);
+  } catch (e) {}
 
   try {
     const saved = localStorage.getItem(STORAGE_KEY_MISSION_SUBMISSIONS);
