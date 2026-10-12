@@ -82,57 +82,37 @@ export const APP_ICONS: IconOption[] = [
     description: '청명한 하늘색 바탕에 귀여운 3D 옐로우 관광버스와 출발 깃발, 탑승 체크인을 상징하는 생동감 넘치는 아이콘',
     themeColor: '#eab308',
     svgContent: (size = 96) => (
-      <svg width={size} height={size} viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="rounded-3xl shadow-lg">
-        <defs>
-          <linearGradient id="bg_bus" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#0284c7" />
-            <stop offset="0.6" stopColor="#38bdf8" />
-            <stop offset="1" stopColor="#bae6fd" />
-          </linearGradient>
-          <linearGradient id="bus_body" x1="20" y1="35" x2="100" y2="85" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#fef08a" />
-            <stop offset="0.4" stopColor="#facc15" />
-            <stop offset="1" stopColor="#eab308" />
-          </linearGradient>
-          <filter id="shadow_bus" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="5" stdDeviation="4" floodOpacity="0.2" />
-          </filter>
-        </defs>
-        {/* Rounded Squircle Background */}
-        <rect width="120" height="120" rx="28" fill="url(#bg_bus)" />
-        {/* Clouds / Sparkles */}
-        <circle cx="28" cy="28" r="8" fill="white" fillOpacity="0.3" />
-        <circle cx="95" cy="32" r="11" fill="white" fillOpacity="0.25" />
-
-        {/* 3D Yellow Tour Bus */}
-        <g filter="url(#shadow_bus)">
-          {/* Bus Main Chassis */}
-          <rect x="24" y="42" width="72" height="42" rx="12" fill="url(#bus_body)" stroke="#ca8a04" strokeWidth="1.5" />
-          {/* Windshield & Windows */}
-          <path d="M30 48 H52 V60 H30 C28 60 26 58 26 56 V52 C26 50 28 48 30 48Z" fill="#0f172a" />
-          <rect x="56" y="48" width="16" height="12" rx="2" fill="#0f172a" />
-          <path d="M76 48 H90 C92 48 94 50 94 52 V56 C94 58 92 60 90 60 H76 V48Z" fill="#0f172a" />
-          {/* Window Glass Glare */}
-          <line x1="33" y1="49" x2="40" y2="59" stroke="white" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" />
-          <line x1="59" y1="49" x2="66" y2="59" stroke="white" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" />
-          <line x1="79" y1="49" x2="86" y2="59" stroke="white" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" />
-          {/* Grille / Headlights */}
-          <circle cx="32" cy="72" r="4.5" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1" />
-          <circle cx="88" cy="72" r="4.5" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1" />
-          <rect x="44" y="70" width="32" height="5" rx="2.5" fill="#713f12" fillOpacity="0.3" />
-          {/* Wheels */}
-          <rect x="34" y="80" width="14" height="10" rx="3" fill="#1e293b" />
-          <rect x="72" y="80" width="14" height="10" rx="3" fill="#1e293b" />
-          <circle cx="41" cy="85" r="2.5" fill="#94a3b8" />
-          <circle cx="79" cy="85" r="2.5" fill="#94a3b8" />
-        </g>
-
-        {/* Departure Flag */}
-        <path d="M72 26 L88 32 L72 38 Z" fill="#ef4444" />
-        <line x1="72" y1="26" x2="72" y2="44" stroke="#475569" strokeWidth="2" strokeLinecap="round" />
-
-        {/* Text Ribbon */}
-        <text x="60" y="105" textAnchor="middle" fill="#0369a1" fontSize="10" fontWeight="900" letterSpacing="0.5" fontFamily="sans-serif">
+      <svg width={size} height={size} viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg" className="rounded-3xl shadow-lg">
+        <rect width="192" height="192" rx="44" fill="#38BDF8" />
+        <circle cx="44" cy="40" r="14" fill="#FFFFFF" fillOpacity="0.35" />
+        <circle cx="150" cy="46" r="18" fill="#FFFFFF" fillOpacity="0.25" />
+        <ellipse cx="96" cy="144" rx="64" ry="8" fill="#0284C7" fillOpacity="0.4" />
+        <rect x="28" y="56" width="136" height="74" rx="20" fill="#FACC15" stroke="#EAB308" strokeWidth="3" />
+        <path d="M48 56 H144 C155 56 164 63 164 72 V74 H28 V72 C28 63 37 56 48 56 Z" fill="#FDE047" />
+        <rect x="28" y="96" width="136" height="6" fill="#EAB308" />
+        <path d="M38 66 H66 V90 H38 C34 90 32 87 32 83 V72 C32 68 35 66 38 66 Z" fill="#E0F2FE" stroke="#0284C7" strokeWidth="2" />
+        <path d="M44 68 L36 84" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" />
+        <rect x="72" y="66" width="22" height="24" rx="4" fill="#E0F2FE" stroke="#0284C7" strokeWidth="2" />
+        <line x1="84" y1="69" x2="78" y2="85" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+        <rect x="98" y="66" width="22" height="24" rx="4" fill="#E0F2FE" stroke="#0284C7" strokeWidth="2" />
+        <line x1="110" y1="69" x2="104" y2="85" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M124 66 H152 C156 66 159 69 159 73 V83 C159 87 156 90 152 90 H124 V66 Z" fill="#E0F2FE" stroke="#0284C7" strokeWidth="2" />
+        <line x1="138" y1="69" x2="132" y2="85" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="40" cy="112" r="7" fill="#FEF08A" stroke="#CA8A04" strokeWidth="2" />
+        <circle cx="40" cy="112" r="3.5" fill="#FFFFFF" />
+        <circle cx="152" cy="112" r="7" fill="#FEF08A" stroke="#CA8A04" strokeWidth="2" />
+        <circle cx="152" cy="112" r="3.5" fill="#FFFFFF" />
+        <rect x="54" y="109" width="84" height="6" rx="3" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="1.5" />
+        <rect x="46" y="122" width="26" height="18" rx="6" fill="#1E293B" />
+        <circle cx="59" cy="131" r="5" fill="#94A3B8" stroke="#475569" strokeWidth="2" />
+        <circle cx="59" cy="131" r="2" fill="#F8FAFC" />
+        <rect x="120" y="122" width="26" height="18" rx="6" fill="#1E293B" />
+        <circle cx="133" cy="131" r="5" fill="#94A3B8" stroke="#475569" strokeWidth="2" />
+        <circle cx="133" cy="131" r="2" fill="#F8FAFC" />
+        <path d="M120 34 L144 42 L120 50 Z" fill="#EF4444" />
+        <line x1="120" y1="34" x2="120" y2="58" stroke="#64748B" strokeWidth="3" strokeLinecap="round" />
+        <rect x="52" y="156" width="88" height="22" rx="11" fill="#0369A1" />
+        <text x="96" y="171" textAnchor="middle" fill="#FFFFFF" fontSize="11" fontWeight="900" fontFamily="sans-serif" letterSpacing="0.5">
           진장 수학여행
         </text>
       </svg>

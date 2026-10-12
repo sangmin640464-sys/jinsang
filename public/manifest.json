@@ -1,0 +1,17 @@
+{
+  "name": "진장중학교 수학여행 스마트 관리 시스템",
+  "short_name": "진장 수학여행",
+  "description": "진장중학교 2학년 수학여행 스마트 인솔 및 안전 관리 시스템",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#38bdf8",
+  "icons": [
+    {
+      "src": "/icon-bus.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
