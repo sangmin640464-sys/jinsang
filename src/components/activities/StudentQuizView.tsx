@@ -25,10 +25,13 @@ export const StudentQuizView: React.FC<StudentQuizViewProps> = ({ currentUser, t
       setQuizzes(qList);
       const sList = await getQuizSubmissions();
       setSubmissions(sList);
-      if (qList.length > 0 && !selectedQuizId) {
+      setSelectedQuizId((prevId) => {
+        if (prevId && qList.some((q: Quiz) => q.id === prevId)) {
+          return prevId;
+        }
         const active = qList.find((q: Quiz) => q.status === 'active');
-        setSelectedQuizId(active ? active.id : qList[0].id);
-      }
+        return active ? active.id : (qList.length > 0 ? qList[0].id : '');
+      });
     } catch (e) {
       console.error(e);
     } finally {

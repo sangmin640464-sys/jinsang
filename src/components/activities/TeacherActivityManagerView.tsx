@@ -46,9 +46,12 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
     try {
       const qList = await getQuizzes();
       setQuizzes(qList);
-      if (qList.length > 0 && !selectedQuizId) {
-        setSelectedQuizId(qList[0].id);
-      }
+      setSelectedQuizId((prevId) => {
+        if (prevId && qList.some((q) => q.id === prevId)) {
+          return prevId;
+        }
+        return qList.length > 0 ? qList[0].id : '';
+      });
       const qSubs = await getQuizSubmissions();
       setQuizSubmissions(qSubs);
 

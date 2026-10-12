@@ -16,7 +16,6 @@ import { AuthCodeModal } from './components/AuthCodeModal';
 import { StudentGuideView } from './components/StudentGuideView';
 import { ParentCommunicationView } from './components/ParentCommunicationView';
 import { TeacherParentCommunicationView } from './components/TeacherParentCommunicationView';
-import { AppIconModal } from './components/AppIconModal';
 import { StudentQuizView } from './components/activities/StudentQuizView';
 import { StudentPhotoMissionView } from './components/activities/StudentPhotoMissionView';
 import { TeacherActivityManagerView } from './components/activities/TeacherActivityManagerView';
@@ -44,9 +43,8 @@ export default function App() {
   const [teacherAuthCode, setTeacherAuthCode] = useState<string>('2026');
   const [authCodeModalOpen, setAuthCodeModalOpen] = useState(false);
 
-  // App Icon Preview & Selection
-  const [appIconModalOpen, setAppIconModalOpen] = useState(false);
-  const [selectedIconId, setSelectedIconId] = useState<string>('compass');
+  // App Icon (Unified to Yellow Bus)
+  const [selectedIconId, setSelectedIconId] = useState<string>('bus');
 
   // Students roster state (140 students)
   const [students, setStudents] = useState<StudentInfo[]>(INITIAL_STUDENTS);
@@ -68,11 +66,9 @@ export default function App() {
         setStudents(JSON.parse(savedStudents));
       }
 
-      const savedIconId = localStorage.getItem('jj_app_icon_id');
-      if (savedIconId) {
-        setSelectedIconId(savedIconId);
-        updateFaviconDom(savedIconId);
-      }
+      setSelectedIconId('bus');
+      updateFaviconDom('bus');
+      localStorage.setItem('jj_app_icon_id', 'bus');
 
       // Auto Login Restore
       const savedUserStr = localStorage.getItem('jj_logged_in_user_v1');
@@ -222,18 +218,12 @@ export default function App() {
     };
   }, [currentUser]);
 
-  const updateFaviconDom = (iconId: string) => {
+  const updateFaviconDom = (iconId: string = 'bus') => {
     try {
       const link = (document.querySelector("link[rel*='icon']") || document.createElement('link')) as HTMLLinkElement;
       link.type = 'image/svg+xml';
       link.rel = 'icon';
-      if (iconId === 'bus') {
-        link.href = '/icon-bus.svg';
-      } else if (iconId === 'camera') {
-        link.href = '/icon-camera.svg';
-      } else {
-        link.href = '/favicon.svg';
-      }
+      link.href = '/icon-bus.svg';
       document.head.appendChild(link);
     } catch (e) {}
   };
@@ -313,22 +303,12 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <>
-        <LoginScreen
-          onLogin={handleLogin}
-          teacherAuthCode={teacherAuthCode}
-          students={students}
-          triggerToast={triggerToast}
-          onOpenIconModal={() => setAppIconModalOpen(true)}
-        />
-        <AppIconModal
-          isOpen={appIconModalOpen}
-          onClose={() => setAppIconModalOpen(false)}
-          selectedIconId={selectedIconId}
-          onSelectIcon={handleSelectIcon}
-          triggerToast={triggerToast}
-        />
-      </>
+      <LoginScreen
+        onLogin={handleLogin}
+        teacherAuthCode={teacherAuthCode}
+        students={students}
+        triggerToast={triggerToast}
+      />
     );
   }
 
@@ -599,16 +579,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Quick App Icon Preview */}
-            <button
-              onClick={() => setAppIconModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 flex items-center space-x-1.5 transition-all shadow-xs"
-              title="앱 아이콘 3종 미리보기 & 선택"
-            >
-              <Palette className="w-3.5 h-3.5 text-blue-600" />
-              <span className="hidden sm:inline">아이콘 변경</span>
-            </button>
-
             {/* Quick Broadcast button for teachers ONLY (Students & Parents cannot write) */}
             {isTeacher && (
               <button
@@ -1072,14 +1042,6 @@ export default function App() {
         onResetCode={handleResetAuthCode}
       />
 
-      {/* App Icon Selection Modal */}
-      <AppIconModal
-        isOpen={appIconModalOpen}
-        onClose={() => setAppIconModalOpen(false)}
-        selectedIconId={selectedIconId}
-        onSelectIcon={handleSelectIcon}
-        triggerToast={triggerToast}
-      />
 
       {/* Real-time Activity Alert Modal (Sudden Quiz & Photo Mission) */}
       <ActivityAlertModal
@@ -1107,7 +1069,7 @@ export default function App() {
 /* =========================================================================
    1. LOGIN SCREEN (교사 / 학생 로그인 + 교사 인증코드 & 총괄 지원)
    ========================================================================= */
-const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenIconModal }) => {
+const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
   const isTeacherRoute = window.location.pathname.includes('/teacher');
   const [loginMode, setLoginMode] = useState<'teacher' | 'student' | 'parent'>(
     isTeacherRoute ? 'teacher' : 'student'
@@ -1562,17 +1524,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast, onOpenI
           </form>
         )}
 
-        {/* App Icon 3-Design Preview Button */}
-        <div className="pt-3 text-center border-t border-white/10">
-          <button
-            type="button"
-            onClick={onOpenIconModal}
-            className="text-xs text-indigo-200 hover:text-white inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all font-medium"
-          >
-            <Palette className="w-3.5 h-3.5 text-amber-300" />
-            <span>🎨 앱 아이콘 3가지 디자인 미리보기 & 선택</span>
-          </button>
-        </div>
       </div>
     </div>
   );
