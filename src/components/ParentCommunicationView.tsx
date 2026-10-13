@@ -15,11 +15,12 @@ import {
   subscribeToUpdates 
 } from '../utils/communicationService';
 import { PREP_CHECKLIST, EMERGENCY_CONTACTS } from '../data/tripData';
+import { RoomAllocationView } from './RoomAllocationView';
 
 interface ParentCommunicationViewProps {
   currentUser: any;
   triggerToast: (msg: string) => void;
-  initialTab?: 'notices' | 'gallery' | 'safety' | 'qa';
+  initialTab?: 'notices' | 'gallery' | 'safety' | 'qa' | 'rooms';
   students?: any[];
 }
 
@@ -29,7 +30,7 @@ export const ParentCommunicationView = ({
   initialTab = 'notices',
   students = []
 }: ParentCommunicationViewProps) => {
-  const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'safety' | 'qa'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'notices' | 'gallery' | 'safety' | 'qa' | 'rooms'>(initialTab);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Cross-reference student from roster by name first to guarantee 100% correct class
@@ -174,6 +175,18 @@ export const ParentCommunicationView = ({
             <div className="inline-flex items-center space-x-1.5 text-xs font-bold px-3 py-1 rounded-full bg-pink-900/30 text-pink-100 border border-pink-400/30">
               <UsersRound className="w-3.5 h-3.5" />
               <span>진장중학교 2학년 {studentClass}반 학부모 소통방</span>
+              {matchedStudent?.room_no && (
+                <>
+                  <span>·</span>
+                  <button
+                    onClick={() => setActiveTab('rooms')}
+                    className="hover:underline text-amber-200 font-extrabold flex items-center space-x-0.5"
+                    title="방배치 바로보기"
+                  >
+                    <span>🛏️ 배정객실: {matchedStudent.room_no}호</span>
+                  </button>
+                </>
+              )}
             </div>
             <h2 className="text-2xl sm:text-3xl font-black">
               {isClass4 ? '이헤레나 선생님의 학급 소통방' : `${studentClass}반 학급 소통방`}
@@ -203,6 +216,7 @@ export const ParentCommunicationView = ({
       <div className="flex space-x-2 border-b border-slate-200 overflow-x-auto no-scrollbar pb-px">
         {[
           { id: 'notices', label: `공지사항 (${notices.length}건)`, icon: Megaphone },
+          { id: 'rooms', label: '숙소 방배치', icon: Hotel, badge: '호실' },
           { id: 'gallery', label: `활동 사진첩 (${galleryImages.length}장)`, icon: Camera },
           { id: 'safety', label: '안전교육 & 준비물', icon: ShieldCheck, badge: '안심' },
           { id: 'qa', label: '선생님께 1:1 문의', icon: MessageSquareText },
@@ -588,6 +602,15 @@ export const ParentCommunicationView = ({
               </form>
             </div>
           </div>
+        )}
+
+        {/* Rooms Tab */}
+        {activeTab === 'rooms' && (
+          <RoomAllocationView
+            students={students}
+            currentUser={currentUser}
+            triggerToast={triggerToast}
+          />
         )}
       </div>
 

@@ -744,13 +744,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
     }
   };
 
-  // Quick Demo select for evaluator
-  const handleQuickStudentSelect = (st: StudentInfo) => {
-    setStudentClass(String(st.class_no));
-    setStudentNo(String(st.student_no));
-    setStudentName(st.name);
-    setStudentBirth('1014');
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center p-4 py-8 overflow-y-auto">
@@ -950,29 +943,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
               />
             </div>
 
-            {/* Quick Demo Student Picker */}
-            <div className="pt-1 space-y-1.5">
-              <span className="text-[11px] text-emerald-300 font-bold block">
-                빠른 체험 학생 선택 (원클릭 자동입력):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  students.find((s) => s.class_no === 1 && s.student_no === 13), // 2-1 김규빈
-                  students.find((s) => s.class_no === 2 && s.student_no === 2),  // 2-2 김동건
-                  students.find((s) => s.class_no === 3 && s.student_no === 2),  // 2-3 김경준
-                  students.find((s) => s.class_no === 4 && s.student_no === 1),  // 2-4 강승엽
-                ].filter(Boolean).map((st) => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => handleQuickStudentSelect(st)}
-                    className="text-[10px] px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 font-medium"
-                  >
-                    2-{st.class_no}반 {st.name}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <button
               type="submit"

@@ -6,7 +6,8 @@ import {
   ArrowUpRight, Users, Navigation, ShieldCheck, Clock, MapPin,
   ChevronRight, CheckCircle2, MessageSquareText, UserCog, Hotel, Hospital, UploadCloud,
   Crown, BookOpen, AlertTriangle, Bell, LogOut, Bus, Home, UserX,
-  KeyRound, Download, ExternalLink, Camera, Eye, EyeOff, Search, Palette, Check, RefreshCw, HelpCircle
+  KeyRound, Download, ExternalLink, Camera, Eye, EyeOff, Search, Palette, Check, RefreshCw, HelpCircle,
+  Trash2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { INITIAL_STUDENTS, StudentInfo } from './data/studentsData';
@@ -20,10 +21,13 @@ import { StudentQuizView } from './components/activities/StudentQuizView';
 import { StudentPhotoMissionView } from './components/activities/StudentPhotoMissionView';
 import { TeacherActivityManagerView } from './components/activities/TeacherActivityManagerView';
 import { ActivityAlertModal, ActivityAlertData } from './components/activities/ActivityAlertModal';
+import { RoomAllocationView } from './components/RoomAllocationView';
 import { alertSoundPlayer, showSystemNotification, requestNotificationPermission } from './utils/alertEffects';
 import {
   getPublicNotices,
   sendPublicNotice,
+  deleteNotice,
+  deleteAllNotices,
   subscribeToUpdates,
   getQuizzes,
   getMissions,
@@ -52,7 +56,7 @@ export default function App() {
   // Public Notices (Synced via Supabase class_notices)
   const [publicNotices, setPublicNotices] = useState<PublicNoticeItem[]>(DEFAULT_PUBLIC_NOTICES);
   const [selectedNotice, setSelectedNotice] = useState<PublicNoticeItem | null>(null);
-  const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'class'>('all');
+  const [broadcastTarget, setBroadcastTarget] = useState<'student' | 'parent'>('student');
   const [isSubmittingNotice, setIsSubmittingNotice] = useState(false);
 
   // Load teacher auth code, persisted students, app icon & auto-login user from localStorage
@@ -63,7 +67,16 @@ export default function App() {
 
       const savedStudents = localStorage.getItem('jj_students_roster_v1');
       if (savedStudents) {
-        setStudents(JSON.parse(savedStudents));
+        const parsed = JSON.parse(savedStudents) as StudentInfo[];
+        const merged = parsed.map((s) => {
+          const init = INITIAL_STUDENTS.find((i) => i.id === s.id);
+          return {
+            ...s,
+            room_no: s.room_no || init?.room_no,
+            gender: s.gender || init?.gender,
+          };
+        });
+        setStudents(merged);
       }
 
       setSelectedIconId('bus');
@@ -98,7 +111,7 @@ export default function App() {
     const userClass = currentUser?.class_no || currentUser?.studentClass || currentUser?.myClass || 0;
     const fetchNotices = async () => {
       try {
-        const list = await getPublicNotices(userClass);
+        const list = await getPublicNotices(userClass, currentUser?.role);
         if (list && list.length > 0) {
           setPublicNotices(list);
         }
@@ -326,6 +339,7 @@ export default function App() {
   // Navigation Items
   const studentNavItems = [
     { icon: <LayoutDashboard className="w-4 h-4" />, label: '수학여행 학생 안내서', tab: 'guide', badge: '학생전용' },
+    { icon: <Hotel className="w-4 h-4 text-indigo-500" />, label: '학생 숙소 방배치', tab: 'student_rooms', badge: '호실' },
     { icon: <HelpCircle className="w-4 h-4 text-amber-500" />, label: '실시간 돌발 퀴즈', tab: 'quiz', badge: '라이브' },
     { icon: <Camera className="w-4 h-4 text-pink-500" />, label: '사진 인증 미션', tab: 'photo_mission', badge: '스탬프' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
@@ -335,6 +349,7 @@ export default function App() {
   const teacherNavItems = [
     { icon: <LayoutDashboard className="w-4 h-4" />, label: isHead ? '전체 현황 대시보드' : '내 학급 대시보드', tab: 'dashboard' },
     { icon: <UserCheck className="w-4 h-4" />, label: isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`, tab: 'attendance' },
+    { icon: <Hotel className="w-4 h-4 text-indigo-500" />, label: isHead ? '전체 숙소 방배치 관리' : `${currentUser.myClass}반 숙소 방배치 관리`, tab: 'rooms_management', badge: '호실배정' },
     ...(isHead ? [{ icon: <UsersRound className="w-4 h-4" />, label: '전 학급 탑승 종합 관제', tab: 'classes', badge: '총괄' }] : []),
     { icon: <Sparkles className="w-4 h-4 text-amber-500" />, label: '돌발 퀴즈 & 사진 미션 관제', tab: 'activities_control', badge: '체육시스템이식' },
     { icon: <MessageSquareText className="w-4 h-4 text-pink-500" />, label: '학부모 소통 관리 (시범)', tab: 'parent_communication', badge: '신규' },
@@ -346,6 +361,7 @@ export default function App() {
 
   const parentNavItems = [
     { icon: <MessageSquareText className="w-4 h-4" />, label: `${currentUser.studentClass}반 ${parentTeacherName} 선생님 학급 소통`, tab: 'communication', badge: '학부모' },
+    { icon: <Hotel className="w-4 h-4 text-indigo-500" />, label: '자녀 숙소 방배치', tab: 'parent_rooms', badge: '호실' },
     { icon: <ShieldCheck className="w-4 h-4 text-emerald-600" />, label: '학생 안전교육 & 준비물', tab: 'safety', badge: '안심' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전', tab: 'emergency' },
@@ -566,6 +582,9 @@ export default function App() {
               <h2 className="text-sm sm:text-base font-black text-slate-900 truncate">
                 {activeTab === 'dashboard' && (isHead ? '전체 학급 통합 대시보드' : `${currentUser.myClass}반 학급 대시보드`)}
                 {activeTab === 'attendance' && (isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`)}
+                {activeTab === 'rooms_management' && (isHead ? '전체 숙소 방배치 관리' : `${currentUser.myClass}반 숙소 방배치 관리`)}
+                {activeTab === 'student_rooms' && '학생 숙소 방배치 현황'}
+                {activeTab === 'parent_rooms' && '자녀 숙소 방배치 현황'}
                 {activeTab === 'classes' && '전 학급 탑승 종합 관제 (총괄)'}
                 {activeTab === 'activities_control' && '돌발 퀴즈 & 사진 미션 인솔 관제'}
                 {activeTab === 'quiz' && '실시간 돌발 퀴즈 (라이브)'}
@@ -583,7 +602,7 @@ export default function App() {
             {isTeacher && (
               <button
                 onClick={() => {
-                  setBroadcastTarget('all');
+                  setBroadcastTarget('student');
                   setBroadcastModalOpen(true);
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold text-white flex items-center space-x-1.5 shadow-xs transition-all ${
@@ -686,6 +705,31 @@ export default function App() {
               currentUser={currentUser}
               students={students}
               onPersistStudents={persistStudents}
+              triggerToast={triggerToast}
+            />
+          )}
+
+          {activeTab === 'rooms_management' && !isStudent && !isParent && (
+            <RoomAllocationView
+              students={students}
+              currentUser={currentUser}
+              onUpdateStudents={persistStudents}
+              triggerToast={triggerToast}
+            />
+          )}
+
+          {activeTab === 'student_rooms' && isStudent && (
+            <RoomAllocationView
+              students={students}
+              currentUser={currentUser}
+              triggerToast={triggerToast}
+            />
+          )}
+
+          {activeTab === 'parent_rooms' && isParent && (
+            <RoomAllocationView
+              students={students}
+              currentUser={currentUser}
               triggerToast={triggerToast}
             />
           )}
@@ -861,43 +905,43 @@ export default function App() {
               </button>
             </div>
 
-            {/* Target Selection: 담임교사도 전체 학년 또는 내 학급 선택 가능 */}
+            {/* Target Selection: 2학년 4반 단독 활용 - 교사 본인학급(학생) vs 학부모 */}
             <div className="space-y-1.5">
               <label className="text-xs font-black text-slate-700 block">발송 대상 선택</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setBroadcastTarget('all')}
+                  onClick={() => setBroadcastTarget('student')}
                   className={`p-3 rounded-2xl border text-left transition-all ${
-                    broadcastTarget === 'all'
+                    broadcastTarget === 'student'
                       ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20'
                       : 'border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center space-x-2 font-black text-xs">
-                    <span className={`w-2 h-2 rounded-full ${broadcastTarget === 'all' ? 'bg-blue-600' : 'bg-slate-300'}`} />
-                    <span>전체 학년 (140명)</span>
+                    <span className={`w-2 h-2 rounded-full ${broadcastTarget === 'student' ? 'bg-blue-600' : 'bg-slate-300'}`} />
+                    <span>교사 본인학급</span>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1 pl-4">
-                    모든 학생·학부모 화면 상단에 배너로 표시
+                  <p className="text-[10px] text-slate-500 mt-1 pl-4 leading-tight">
+                    {currentUser?.myClass && currentUser.myClass !== 'all' ? `${currentUser.myClass}반` : '4반'} 학생 화면 상단에 배너 표시
                   </p>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setBroadcastTarget('class')}
+                  onClick={() => setBroadcastTarget('parent')}
                   className={`p-3 rounded-2xl border text-left transition-all ${
-                    broadcastTarget === 'class'
+                    broadcastTarget === 'parent'
                       ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20'
                       : 'border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center space-x-2 font-black text-xs">
-                    <span className={`w-2 h-2 rounded-full ${broadcastTarget === 'class' ? 'bg-blue-600' : 'bg-slate-300'}`} />
-                    <span>{currentUser?.myClass ? `${currentUser.myClass}반 학생/학부모` : '지정 학급'}</span>
+                    <span className={`w-2 h-2 rounded-full ${broadcastTarget === 'parent' ? 'bg-blue-600' : 'bg-slate-300'}`} />
+                    <span>학부모</span>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1 pl-4">
-                    해당 반 학생·학부모에게만 상단 배너 표시
+                  <p className="text-[10px] text-slate-500 mt-1 pl-4 leading-tight">
+                    {currentUser?.myClass && currentUser.myClass !== 'all' ? `${currentUser.myClass}반` : '4반'} 학부모 안심 화면 상단에 배너 표시
                   </p>
                 </button>
               </div>
@@ -924,8 +968,61 @@ export default function App() {
             </div>
 
             <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-              * 작성된 공지는 Supabase 클라우드를 통해 <b>모든 학생 및 학부모 기기에 실시간으로 즉각 전달</b>됩니다. 학생과 학부모는 공지를 클릭하여 내용을 확인할 수 있습니다.
+              * 작성된 공지는 Supabase 클라우드를 통해 <b>{broadcastTarget === 'student' ? '교사 본인학급(학생)' : '학부모'} 기기에 실시간으로 즉각 전달</b>됩니다. 대상 사용자는 상단 배너를 클릭하여 상세 내용을 확인할 수 있습니다.
             </p>
+
+            {/* Active Notices Management List (For Teachers to view and delete test notices) */}
+            {publicNotices.length > 0 && (
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] font-black text-slate-700 flex items-center space-x-1">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span>현재 발송된 공지 ({publicNotices.length}건)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm('발송된 모든 실시간 공지사항(테스트 발송 내역 포함)을 전체 삭제하시겠습니까?\n모든 학생 및 학부모 기기에서도 즉시 제거됩니다.')) return;
+                      const targetClass = (currentUser?.myClass && currentUser.myClass !== 'all') ? Number(currentUser.myClass) : 4;
+                      await deleteAllNotices(targetClass);
+                      setPublicNotices([]);
+                      triggerToast('모든 실시간 공지가 전체 삭제되었습니다.');
+                    }}
+                    className="text-[10px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg border border-red-200 transition-colors flex items-center space-x-1"
+                    title="모든 실시간 공지 일괄 삭제"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>전체 일괄 삭제</span>
+                  </button>
+                </div>
+
+                <div className="max-h-28 overflow-y-auto space-y-1.5 pr-0.5">
+                  {publicNotices.map((pn) => (
+                    <div key={pn.id} className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs hover:bg-slate-100/70 transition-colors">
+                      <div className="truncate flex-1 mr-2">
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <span className="text-[10px] text-slate-400 font-mono shrink-0">{pn.time}</span>
+                          <span className="font-bold text-slate-800 text-[11px] truncate">{pn.text}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm(`'${pn.text}' 공지를 삭제하시겠습니까?`)) return;
+                          await deleteNotice(String(pn.id));
+                          setPublicNotices((prev) => prev.filter((p) => String(p.id) !== String(pn.id)));
+                          triggerToast('공지가 삭제되었습니다.');
+                        }}
+                        className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors shrink-0"
+                        title="개별 삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end space-x-2 pt-2">
               <button
@@ -953,7 +1050,7 @@ export default function App() {
                   setIsSubmittingNotice(true);
                   try {
                     const authorLabel = `${currentUser?.name} 선생님${currentUser?.myClass ? ` (${currentUser.myClass}반)` : ''}`;
-                    const targetClass = broadcastTarget === 'all' ? 0 : (currentUser?.myClass || 0);
+                    const targetClass = (currentUser?.myClass && currentUser.myClass !== 'all') ? Number(currentUser.myClass) : 4;
 
                     const newNotice = await sendPublicNotice({
                       target: broadcastTarget,
@@ -964,7 +1061,7 @@ export default function App() {
                     });
 
                     setPublicNotices((prev) => [newNotice, ...prev]);
-                    triggerToast(`공지가 성공적으로 발송되었습니다! (${broadcastTarget === 'all' ? '전체 학년' : `${currentUser?.myClass}반`})`);
+                    triggerToast(`공지가 성공적으로 발송되었습니다! (${broadcastTarget === 'student' ? '교사 본인학급' : '학부모'})`);
                     setBroadcastModalOpen(false);
                   } catch (e) {
                     console.error('Notice send error:', e);
@@ -983,7 +1080,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Public Notice Detail Modal (For Students, Parents, Teachers to READ) */}
+      {/* Public Notice Detail Modal (For Students, Parents, Teachers to READ & Teachers to DELETE) */}
       {selectedNotice && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 space-y-4 shadow-xl">
@@ -1018,16 +1115,36 @@ export default function App() {
               {selectedNotice.content || selectedNotice.text}
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1 border-t border-slate-100">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-2 border-t border-slate-100">
               <span className="font-bold text-slate-600">
                 발송: {selectedNotice.author}
               </span>
-              <button
-                onClick={() => setSelectedNotice(null)}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-xs"
-              >
-                확인 완료
-              </button>
+              <div className="flex items-center space-x-2">
+                {isTeacher && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm(`'${selectedNotice.text}' 공지를 삭제하시겠습니까?\n(모든 학생 및 학부모 기기에서도 즉시 삭제됩니다)`)) return;
+                      await deleteNotice(String(selectedNotice.id));
+                      setPublicNotices((prev) => prev.filter((p) => String(p.id) !== String(selectedNotice.id)));
+                      setSelectedNotice(null);
+                      triggerToast('공지사항이 삭제되었습니다.');
+                    }}
+                    className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-3 py-2 rounded-xl text-xs transition-colors flex items-center space-x-1"
+                    title="이 공지 삭제"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>공지 삭제</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedNotice(null)}
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-xs"
+                >
+                  확인 완료
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1186,13 +1303,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
     }
   };
 
-  // Quick Demo select for evaluator
-  const handleQuickStudentSelect = (st: StudentInfo) => {
-    setStudentClass(String(st.class_no));
-    setStudentNo(String(st.student_no));
-    setStudentName(st.name);
-    setStudentBirth('1014');
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center p-4 py-8 overflow-y-auto">
@@ -1491,29 +1601,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
               />
             </div>
 
-            {/* Quick Demo Student Picker */}
-            <div className="pt-1 space-y-1.5">
-              <span className="text-[11px] text-emerald-300 font-bold block">
-                빠른 체험 학생 선택 (원클릭 자동입력):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  students.find((s) => s.class_no === 1 && s.student_no === 13), // 2-1 김규빈
-                  students.find((s) => s.class_no === 2 && s.student_no === 2),  // 2-2 김동건
-                  students.find((s) => s.class_no === 3 && s.student_no === 2),  // 2-3 김경준
-                  students.find((s) => s.class_no === 4 && s.student_no === 1),  // 2-4 강승엽
-                ].filter(Boolean).map((st) => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => handleQuickStudentSelect(st)}
-                    className="text-[10px] px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 font-medium"
-                  >
-                    2-{st.class_no}반 {st.name}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <button
               type="submit"
@@ -1678,7 +1765,23 @@ const TeacherDashboardTab = ({ currentUser, students, setActiveTab, triggerToast
       </div>
 
       {/* Quick Action Navigation for Teachers */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <button
+          onClick={() => setActiveTab('rooms_management')}
+          className="clean-card p-4 text-left flex items-center justify-between hover:border-indigo-300 transition-all group"
+        >
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Hotel className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-black text-xs text-slate-900">숙소 방배치 관리</p>
+              <p className="text-[10px] text-slate-500">{isHead ? '전체 학급 호실 배정' : `${currentUser.myClass}반 호실·인원 수정`}</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+        </button>
+
         <button
           onClick={() => setActiveTab('guide')}
           className="clean-card p-4 text-left flex items-center justify-between hover:border-blue-300 transition-all"

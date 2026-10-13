@@ -9,6 +9,7 @@ import {
 import { ITINERARY, LOTTE_COUPON_STORES, PREP_CHECKLIST, EMERGENCY_CONTACTS, TEACHERS } from '../data/tripData';
 import { OPEN_KAKAO_URL, MAP_IMAGES } from '../data/mapImages';
 import { alertSoundPlayer, requestNotificationPermission } from '../utils/alertEffects';
+import { RoomAllocationView } from './RoomAllocationView';
 
 interface StudentGuideViewProps {
   students: any[];
@@ -113,6 +114,18 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
               <span>2학년 {currentStudentObj.class_no}반 {currentStudentObj.student_no}번</span>
               <span>·</span>
               <span>{currentStudentObj.bus_no}호차 탑승</span>
+              {currentStudentObj.room_no && (
+                <>
+                  <span>·</span>
+                  <button
+                    onClick={() => setGuideTab('t9')}
+                    className="hover:underline text-amber-200 font-extrabold flex items-center space-x-0.5"
+                    title="방배치 바로보기"
+                  >
+                    <span>🛏️ {currentStudentObj.room_no}호</span>
+                  </button>
+                </>
+              )}
             </div>
             <h3 className="text-xl font-black">
               {currentStudentObj.name} 학생, 즐겁고 안전한 수학여행 되세요!
@@ -242,6 +255,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
         <div className="flex space-x-1.5 min-w-max bg-slate-200/80 p-1.5 rounded-2xl border border-slate-300/50">
           {[
             { id: 't1', label: '참가학생', icon: <Users className="w-3.5 h-3.5" /> },
+            { id: 't9', label: '숙소 방배치', icon: <Hotel className="w-3.5 h-3.5" /> },
             { id: 't2', label: '담임 연락처', icon: <PhoneCall className="w-3.5 h-3.5" /> },
             { id: 't3', label: '일정표', icon: <CalendarRange className="w-3.5 h-3.5" /> },
             { id: 't4', label: '버스배정', icon: <Bus className="w-3.5 h-3.5" /> },
@@ -974,6 +988,15 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
             </ul>
           </div>
         </div>
+      )}
+
+      {/* ===================== TAB 9: 숙소 방배치 ===================== */}
+      {guideTab === 't9' && (
+        <RoomAllocationView
+          students={students}
+          currentUser={currentUser}
+          triggerToast={triggerToast}
+        />
       )}
     </div>
   );

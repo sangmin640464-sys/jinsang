@@ -1,4 +1,3 @@
-// 140 Students roster for Jinjang Middle School
 export interface StudentInfo {
   id: number;
   grade: number;
@@ -11,7 +10,25 @@ export interface StudentInfo {
   is_participating: boolean;
   bus_status: boolean;
   room_status: boolean;
+  room_no?: string;
+  gender?: '남' | '여';
 }
+
+// 2학년 4반 (이헤레나 선생님) 공식 숙소 호실 배정 데이터 (나인트리 호텔 판교 5층 남학생 / 6층 여학생)
+export const CLASS_4_ROOM_ASSIGNMENTS = [
+  // 남학생 (5층) - 3인실 2개, 2인실 3개 (12명)
+  { room_no: '539호', gender: '남' as const, capacity: 3, student_nos: [7, 8, 12] }, // 박경근, 박서준, 추윤성
+  { room_no: '534호', gender: '남' as const, capacity: 3, student_nos: [5, 3, 10] }, // 김지후, 김명준, 유세형
+  { room_no: '535호', gender: '남' as const, capacity: 2, student_nos: [1, 2] },     // 강승엽, 김동연
+  { room_no: '536호', gender: '남' as const, capacity: 2, student_nos: [9, 11] },    // 석지훈, 최시우
+  { room_no: '531호', gender: '남' as const, capacity: 2, student_nos: [6, 4] },     // 류기범, 김제윤
+  // 여학생 (6층) - 3인실 2개, 2인실 3개 (12명)
+  { room_no: '605호', gender: '여' as const, capacity: 3, student_nos: [16, 23, 24] }, // 김예주, 제갈예은, 최미소
+  { room_no: '607호', gender: '여' as const, capacity: 3, student_nos: [18, 20, 22] }, // 안지율, 이지민, 전효원
+  { room_no: '609호', gender: '여' as const, capacity: 2, student_nos: [19, 13] },     // 이예율, 강유민
+  { room_no: '610호', gender: '여' as const, capacity: 2, student_nos: [15, 17] },     // 김규리, 성유림
+  { room_no: '612호', gender: '여' as const, capacity: 2, student_nos: [14, 21] },     // 권규리, 장예은
+];
 
 const RAW_STUDENTS: [number, number, string][] = [
   // Class 1 (25)
@@ -57,8 +74,28 @@ const RAW_STUDENTS: [number, number, string][] = [
   [6, 22, '이정현'], [6, 23, '정민주']
 ];
 
+// Helper to determine initial room and gender for students
+const getInitialRoomAndGender = (classNo: number, studentNo: number): { room: string; gender: '남' | '여' } => {
+  if (classNo === 4) {
+    for (const alloc of CLASS_4_ROOM_ASSIGNMENTS) {
+      if (alloc.student_nos.includes(studentNo)) {
+        return { room: alloc.room_no, gender: alloc.gender };
+      }
+    }
+  }
+
+  // Fallback for other classes (1, 2, 3, 5, 6)
+  const isBoy = studentNo <= 12;
+  const gender = isBoy ? '남' : '여';
+  const floor = isBoy ? '5' : '6';
+  const roomIndex = Math.floor((studentNo - 1) / 3) + 1;
+  const roomStr = `${floor}${classNo}${roomIndex < 10 ? '0' + roomIndex : roomIndex}호`;
+  return { room: roomStr, gender };
+};
+
 export const INITIAL_STUDENTS: StudentInfo[] = RAW_STUDENTS.map(([c, n, name], idx) => {
   const code = `2${c}${n < 10 ? '0' + n : n}`;
+  const { room, gender } = getInitialRoomAndGender(c, n);
   return {
     id: idx + 1,
     grade: 2,
@@ -71,5 +108,7 @@ export const INITIAL_STUDENTS: StudentInfo[] = RAW_STUDENTS.map(([c, n, name], i
     is_participating: true,
     bus_status: false,
     room_status: false,
+    room_no: room,
+    gender: gender
   };
 });

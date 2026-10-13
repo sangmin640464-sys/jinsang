@@ -160,11 +160,12 @@ export const getNotices = async (classNo?: number | 'all'): Promise<ClassNotice[
     }
   } catch (e) {}
 
-  // Merge unique notices
+  // Merge unique notices (filtering out deleted ones)
+  const deletedIds = new Set(getDeletedNoticeIds());
   const map = new Map<string, ClassNotice>();
-  DEFAULT_NOTICES.forEach((n) => map.set(n.id, n));
-  localNotices.forEach((n) => map.set(n.id, n));
-  remoteNotices.forEach((n) => map.set(n.id, n)); // remote takes priority
+  DEFAULT_NOTICES.filter((n) => !deletedIds.has(String(n.id))).forEach((n) => map.set(n.id, n));
+  localNotices.filter((n) => !deletedIds.has(String(n.id))).forEach((n) => map.set(n.id, n));
+  remoteNotices.filter((n) => !deletedIds.has(String(n.id))).forEach((n) => map.set(n.id, n)); // remote takes priority
 
   const allList = Array.from(map.values()).sort((a, b) => {
     const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -232,20 +233,87 @@ export const createNotice = async (
   return newNotice;
 };
 
-export const deleteNotice = async (noticeId: string): Promise<void> => {
-  try {
-    await supabase.from('class_notices').delete().eq('id', noticeId);
-  } catch (e) {}
+const STORAGE_KEY_DELETED_NOTICES = 'jj_deleted_notices_v1';
 
+export const getDeletedNoticeIds = (): string[] => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DELETED_NOTICES);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const markNoticeAsDeleted = (noticeId: string | number) => {
+  try {
+    const strId = String(noticeId);
+    const list = getDeletedNoticeIds();
+    if (!list.includes(strId)) {
+      list.push(strId);
+      localStorage.setItem(STORAGE_KEY_DELETED_NOTICES, JSON.stringify(list));
+    }
+  } catch {}
+};
+
+export const deleteNotice = async (noticeId: string | number): Promise<void> => {
+  const strId = String(noticeId);
+  markNoticeAsDeleted(strId);
+
+  // 1. Supabase delete
+  try {
+    await supabase.from('class_notices').delete().eq('id', strId);
+  } catch (e) {
+    console.warn('Supabase notice delete error:', e);
+  }
+
+  // 2. Local storage delete from both regular notices & public notices
   try {
     const saved = localStorage.getItem(STORAGE_KEY_NOTICES);
     if (saved) {
       const list: ClassNotice[] = JSON.parse(saved);
-      const updated = list.filter((n) => n.id !== noticeId);
+      const updated = list.filter((n) => String(n.id) !== strId);
       localStorage.setItem(STORAGE_KEY_NOTICES, JSON.stringify(updated));
     }
   } catch (e) {}
 
+  try {
+    const savedPub = localStorage.getItem(STORAGE_KEY_PUBLIC_NOTICES);
+    if (savedPub) {
+      const list: PublicNoticeItem[] = JSON.parse(savedPub);
+      const updated = list.filter((n) => String(n.id) !== strId);
+      localStorage.setItem(STORAGE_KEY_PUBLIC_NOTICES, JSON.stringify(updated));
+    }
+  } catch (e) {}
+
+  // 3. Realtime Broadcast
+  broadcastUpdate('notices');
+};
+
+export const deleteAllNotices = async (classNo?: number): Promise<void> => {
+  const targetClass = classNo || 4;
+
+  // 1. Supabase batch delete (delete non-QA notices for this class or general)
+  try {
+    await supabase
+      .from('class_notices')
+      .delete()
+      .in('class_no', [targetClass, 0])
+      .not('title', 'like', '__QA__:%');
+  } catch (e) {
+    console.warn('Supabase deleteAllNotices error:', e);
+  }
+
+  // 2. Mark default sample notices as deleted so they do not reappear
+  DEFAULT_NOTICES.forEach((n) => markNoticeAsDeleted(n.id));
+  DEFAULT_PUBLIC_NOTICES.forEach((n) => markNoticeAsDeleted(String(n.id)));
+
+  // 3. Clear local storage notice caches
+  try {
+    localStorage.removeItem(STORAGE_KEY_NOTICES);
+    localStorage.removeItem(STORAGE_KEY_PUBLIC_NOTICES);
+  } catch (e) {}
+
+  // 4. Realtime broadcast
   broadcastUpdate('notices');
 };
 
@@ -253,6 +321,7 @@ export const deleteNotice = async (noticeId: string): Promise<void> => {
 export interface PublicNoticeItem {
   id: string | number;
   class_no: number; // 0: 전체 공지, 1~6: 특정 학급 공지
+  target?: 'all' | 'class' | 'student' | 'parent';
   text: string;
   time: string;
   author: string;
@@ -262,7 +331,7 @@ export interface PublicNoticeItem {
 
 const STORAGE_KEY_PUBLIC_NOTICES = 'jj_public_notices_v2';
 
-export const getPublicNotices = async (myClass?: number): Promise<PublicNoticeItem[]> => {
+export const getPublicNotices = async (myClass?: number, userRole?: string): Promise<PublicNoticeItem[]> => {
   let remoteList: PublicNoticeItem[] = [];
 
   try {
@@ -279,11 +348,26 @@ export const getPublicNotices = async (myClass?: number): Promise<PublicNoticeIt
         const timeStr = item.created_at
           ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
           : '최근';
-        const prefix = Number(item.class_no) === 0 ? '[전체 공지]' : `[${item.class_no}반 공지]`;
-        const titleText = item.title?.startsWith('[') ? item.title : `${prefix} ${item.title}`;
+        const isParentNotice = item.title?.includes('학부모');
+        const isStudentNotice = item.title?.includes('학생');
+        const inferredTarget: 'all' | 'class' | 'student' | 'parent' = 
+          Number(item.class_no) === 0 
+            ? 'all' 
+            : isParentNotice 
+              ? 'parent' 
+              : isStudentNotice 
+                ? 'student' 
+                : 'class';
+        const defaultPrefix = Number(item.class_no) === 0 
+          ? '[전체 공지]' 
+          : isParentNotice 
+            ? `[${item.class_no}반 학부모]` 
+            : `[${item.class_no}반 학생]`;
+        const titleText = item.title?.startsWith('[') ? item.title : `${defaultPrefix} ${item.title}`;
         return {
           id: String(item.id),
           class_no: Number(item.class_no),
+          target: inferredTarget,
           text: titleText,
           time: timeStr,
           author: item.author || '본부/선생님',
@@ -305,11 +389,12 @@ export const getPublicNotices = async (myClass?: number): Promise<PublicNoticeIt
     }
   } catch (e) {}
 
-  // 합치기 (중복 id 제거)
+  // 합치기 (중복 id 제거 및 삭제된 공지 제외)
+  const deletedIds = new Set(getDeletedNoticeIds());
   const map = new Map<string, PublicNoticeItem>();
-  DEFAULT_PUBLIC_NOTICES.forEach((n) => map.set(String(n.id), n as PublicNoticeItem));
-  localList.forEach((n) => map.set(String(n.id), n));
-  remoteList.forEach((n) => map.set(String(n.id), n));
+  DEFAULT_PUBLIC_NOTICES.filter((n) => !deletedIds.has(String(n.id))).forEach((n) => map.set(String(n.id), n as PublicNoticeItem));
+  localList.filter((n) => !deletedIds.has(String(n.id))).forEach((n) => map.set(String(n.id), n));
+  remoteList.filter((n) => !deletedIds.has(String(n.id))).forEach((n) => map.set(String(n.id), n));
 
   const allItems = Array.from(map.values()).sort((a, b) => {
     const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -317,25 +402,52 @@ export const getPublicNotices = async (myClass?: number): Promise<PublicNoticeIt
     return timeB - timeA;
   });
 
-  // 필터링: 전체공지(0)는 모두에게 보이고, 학급 공지는 해당 학급 사용자에게 표시
+  // 1. 학급 필터링: 전체공지(0)는 모두에게 보이고, 학급 공지는 해당 학급 사용자에게 표시
+  let filtered = allItems;
   if (myClass && myClass > 0) {
-    return allItems.filter((n) => n.class_no === 0 || n.class_no === myClass);
+    filtered = filtered.filter((n) => n.class_no === 0 || n.class_no === myClass);
   }
-  return allItems;
+
+  // 2. 대상 역할(학생 vs 학부모) 필터링
+  if (userRole === 'student') {
+    filtered = filtered.filter((n) => {
+      // 학부모 전용 공지는 학생 화면에서 제외
+      if (n.target === 'parent' || n.text.includes('학부모]')) {
+        return false;
+      }
+      return true;
+    });
+  } else if (userRole === 'parent') {
+    filtered = filtered.filter((n) => {
+      // 본인학급(학생) 전용 공지는 학부모 화면에서 제외
+      if (n.target === 'student' || n.text.includes('학생]')) {
+        return false;
+      }
+      return true;
+    });
+  }
+  // 교사는 모든 공지 확인 가능 (userRole === 'classTeacher' || userRole === 'headTeacher' 등)
+
+  return filtered;
 };
 
 export const sendPublicNotice = async (noticeData: {
-  target: 'all' | 'class';
+  target: 'all' | 'class' | 'student' | 'parent';
   class_no?: number;
   text: string;
   author: string;
   detail?: string;
 }): Promise<PublicNoticeItem> => {
   const isAll = noticeData.target === 'all';
-  const targetClassNo = isAll ? 0 : (noticeData.class_no || 0);
+  const isParent = noticeData.target === 'parent';
+  const targetClassNo = isAll ? 0 : (noticeData.class_no || 4);
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const prefix = isAll ? '[전체 공지]' : `[${targetClassNo}반 공지]`;
+  const prefix = isAll 
+    ? '[전체 공지]' 
+    : isParent 
+      ? `[${targetClassNo}반 학부모]` 
+      : `[${targetClassNo}반 학생]`;
   
   let cleanText = noticeData.text.trim();
   if (!cleanText.startsWith('[')) {
@@ -345,6 +457,7 @@ export const sendPublicNotice = async (noticeData: {
   const newItem: PublicNoticeItem = {
     id: `pub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     class_no: targetClassNo,
+    target: noticeData.target,
     text: cleanText,
     time: timeStr,
     author: noticeData.author || '선생님',

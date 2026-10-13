@@ -7,6 +7,7 @@ import {
   getNotices, 
   createNotice, 
   deleteNotice, 
+  deleteAllNotices,
   getGallery, 
   uploadGalleryImage, 
   deleteGalleryImage,
@@ -138,6 +139,20 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
       await deleteNotice(id);
       setNotices((prev) => prev.filter((n) => n.id !== id));
       triggerToast('공지사항이 삭제되었습니다.');
+    } catch (error) {
+      console.error(error);
+      triggerToast('삭제 중 오류가 발생했습니다.');
+    }
+  };
+
+  // Handle All Notices Delete
+  const handleDeleteAllNotices = async () => {
+    if (!window.confirm(`정말 2학년 ${targetClass}반의 모든 공지사항(테스트 발송 내역 포함)을 전체 삭제하시겠습니까?\n모든 학생 및 학부모 기기에서도 즉시 제거됩니다.`)) return;
+    try {
+      await deleteAllNotices(targetClass);
+      setNotices([]);
+      triggerToast('모든 공지사항이 전체 삭제되었습니다.');
+      fetchNotices();
     } catch (error) {
       console.error(error);
       triggerToast('삭제 중 오류가 발생했습니다.');
@@ -327,7 +342,20 @@ export const TeacherParentCommunicationView = ({ currentUser, triggerToast }: { 
             <div className="space-y-4">
               <div className="flex justify-between items-center px-2">
                 <h3 className="font-bold text-slate-700 text-sm">기존 발송 내역</h3>
-                <span className="text-xs text-slate-400">총 {notices.length}건 등록됨</span>
+                <div className="flex items-center space-x-2.5">
+                  <span className="text-xs text-slate-400">총 {notices.length}건 등록됨</span>
+                  {notices.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteAllNotices}
+                      className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl border border-red-200 transition-all flex items-center space-x-1"
+                      title="등록된 모든 공지사항 삭제"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>전체 공지 삭제</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {loadingNotices ? (
