@@ -261,7 +261,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
             { id: 't4', label: '버스배정', icon: <Bus className="w-3.5 h-3.5" /> },
             { id: 't5', label: '안전교육', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
             { id: 't6', label: '롯데월드', icon: <Utensils className="w-3.5 h-3.5" /> },
-            { id: 't7', label: '경복궁·형무소', icon: <MapPin className="w-3.5 h-3.5" /> },
+            { id: 't7', label: '서대문형무소', icon: <MapPin className="w-3.5 h-3.5" /> },
             ...(!isParent ? [{ id: 't8', label: '사진 미션', icon: <Camera className="w-3.5 h-3.5" /> }] : []),
           ].map((tab) => (
             <button
@@ -536,7 +536,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              1일차 (10.14 수 · 경복궁/형무소)
+              1일차 (10.14 수 · 서대문형무소/대학로)
             </button>
             <button
               onClick={() => setScheduleDay(2)}
@@ -611,7 +611,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
                   </tr>
                   <tr className="border-b border-slate-100">
                     <th className="py-2.5 pr-4 text-left font-bold text-slate-500 whitespace-nowrap">1일차 저녁</th>
-                    <td className="py-2.5 text-slate-800">나인트리 호텔 식당 (비빔밥 또는 돈가스)</td>
+                    <td className="py-2.5 text-slate-800">나인트리 호텔 식당 <b>수제 돈까스</b> (단일 메뉴 통일)</td>
                   </tr>
                   <tr className="border-b border-slate-100">
                     <th className="py-2.5 pr-4 text-left font-bold text-slate-500 whitespace-nowrap">2·3일차 아침</th>
@@ -623,7 +623,7 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
                   </tr>
                   <tr>
                     <th className="py-2.5 pr-4 text-left font-bold text-slate-500 whitespace-nowrap">3일차 점심</th>
-                    <td className="py-2.5 text-slate-800">과천과학관 식당 (불고기 덮밥)</td>
+                    <td className="py-2.5 text-slate-800">과천과학관 식당 <b>불고기 덮밥</b> (단일 메뉴)</td>
                   </tr>
                 </tbody>
               </table>
@@ -899,45 +899,43 @@ export const StudentGuideView: React.FC<StudentGuideViewProps> = ({
         </div>
       )}
 
-      {/* ===================== TAB 7: 경복궁 & 서대문형무소 ===================== */}
+      {/* ===================== TAB 7: 서대문형무소 역사관 & 대학로 소극장 ===================== */}
       {guideTab === 't7' && (
         <div className="space-y-5">
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 space-y-1">
             <p className="font-black text-sm text-emerald-900">1일차 서울 역사·문화 탐방 코스</p>
             <p className="text-[11px] text-emerald-800">
-              13:00~14:00 경복궁 단체사진 & 조별관람 → 14:30~15:30 서대문형무소 역사관 관람
+              13:30~15:30 서대문형무소 역사관 단체사진 & 자유관람 → 16:00~18:00 대학로 소극장 연극 &lt;비누향기&gt;
             </p>
           </div>
 
           <div className="clean-card p-5 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h4 className="font-black text-sm text-slate-900">경복궁 관람 (1일차 13:00~14:00)</h4>
-              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-sm">단체 사진 촬영</span>
-            </div>
-            <div className="rounded-xl overflow-hidden my-2 border border-slate-200">
-              <img src={MAP_IMAGES.gyeongbok} alt="경복궁 관람 안내도" className="w-full h-auto object-cover" />
-            </div>
-            <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
-              <li>광화문 → 흥례문 → 근정전 앞 <b>전 학급 단체 사진 촬영</b> 후 조별 관람을 진행합니다.</li>
-              <li>경회루, 향원정 등 문화재에 올라가거나 손대지 않습니다.</li>
-              <li>돌바닥과 문턱이 많으므로 절대 뛰지 않습니다.</li>
-              <li>관람 시간이 1시간으로 한정되어 있으므로 <b>집합 시간을 엄수</b>합니다.</li>
-            </ul>
-          </div>
-
-          <div className="clean-card p-5 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h4 className="font-black text-sm text-slate-900">서대문형무소 역사관 (1일차 14:30~15:30)</h4>
-              <span className="text-[10px] font-bold bg-red-100 text-red-800 px-2 py-0.5 rounded-sm">경건한 관람</span>
+              <h4 className="font-black text-sm text-slate-900">서대문형무소 역사관 (1일차 13:30~15:30)</h4>
+              <span className="text-[10px] font-bold bg-red-100 text-red-800 px-2 py-0.5 rounded-sm">단체사진 & 경건한 관람</span>
             </div>
             <div className="rounded-xl overflow-hidden my-2 border border-slate-200">
               <img src={MAP_IMAGES.seodaemun} alt="서대문형무소 역사관 안내도" className="w-full h-auto object-cover" />
             </div>
             <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
+              <li>반별 <b>단체 사진 촬영</b> 후 조별 자유 관람을 진행합니다.</li>
               <li>독립운동가들의 숭고한 희생을 기리는 추모 공간이므로 <b>경건한 태도</b>를 유지합니다.</li>
               <li>지하 전시실과 옥사는 어둡고 계단이 좁으므로 앞사람과 안전거리를 유지합니다.</li>
               <li>사형장, 시구문 앞에서는 장난을 치거나 큰 소리로 떠들지 않습니다.</li>
-              <li>관람 종료 후 <b>15:30까지 정문 앞</b>으로 신속히 모입니다.</li>
+              <li>관람 종료 후 <b>15:30까지 정문 앞</b>으로 신속히 모여 차량에 탑승합니다.</li>
+            </ul>
+          </div>
+
+          <div className="clean-card p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h4 className="font-black text-sm text-slate-900">대학로 소극장 공연 관람 &lt;비누향기&gt; (1일차 16:00~18:00)</h4>
+              <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-sm">서연 아트홀</span>
+            </div>
+            <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
+              <li>입장 전 <b>비상시 대피로 및 비상구 위치</b>를 반드시 확인합니다.</li>
+              <li>공연 관람 시간은 <b>16:30 ~ 18:00</b>이며, 공연 중 휴대폰은 무음/비행기 모드로 전환합니다.</li>
+              <li>공연 중 사진 및 동영상 촬영, 음식물 반입은 엄격히 금지됩니다.</li>
+              <li>공연 종료 후 질서 있게 퇴장하여 18:00까지 전세버스에 탑승합니다.</li>
             </ul>
           </div>
         </div>
