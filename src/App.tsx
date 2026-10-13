@@ -7,7 +7,7 @@ import {
   ChevronRight, CheckCircle2, MessageSquareText, UserCog, Hotel, Hospital, UploadCloud,
   Crown, BookOpen, AlertTriangle, Bell, LogOut, Bus, Home, UserX,
   KeyRound, Download, ExternalLink, Camera, Eye, EyeOff, Search, Palette, Check, RefreshCw, HelpCircle,
-  Trash2
+  Trash2, SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { INITIAL_STUDENTS, StudentInfo } from './data/studentsData';
@@ -31,6 +31,10 @@ import {
   subscribeToUpdates,
   getQuizzes,
   getMissions,
+  getNavConfig,
+  saveNavConfig,
+  NavConfig,
+  DEFAULT_NAV_CONFIG,
   PublicNoticeItem,
   DEFAULT_PUBLIC_NOTICES
 } from './utils/communicationService';
@@ -42,6 +46,176 @@ export default function App() {
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
+
+  // Teacher Navigation Custom Order & Visibility State
+  const DEFAULT_TEACHER_NAV_ORDER = DEFAULT_NAV_CONFIG.teacherOrder || [
+    'dashboard',
+    'attendance',
+    'rooms_management',
+    'classes',
+    'activities_control',
+    'parent_communication',
+    'guide',
+    'schedule',
+    'ai',
+    'emergency'
+  ];
+  const [teacherNavOrder, setTeacherNavOrder] = useState<string[]>(DEFAULT_TEACHER_NAV_ORDER);
+  const [hiddenTeacherMenus, setHiddenTeacherMenus] = useState<string[]>([]);
+  const [hiddenStudentMenus, setHiddenStudentMenus] = useState<string[]>([]);
+  const [navOrderModalOpen, setNavOrderModalOpen] = useState(false);
+  const [isNavInlineEdit, setIsNavInlineEdit] = useState(false);
+  const [navModalActiveTab, setNavModalActiveTab] = useState<'teacher' | 'student'>('teacher');
+
+  // Mapping from teacher menu tab to corresponding student menu tabs
+  const TEACHER_TO_STUDENT_TAB_MAP: Record<string, string[]> = {
+    rooms_management: ['student_rooms'],
+    activities_control: ['quiz', 'photo_mission'],
+    schedule: ['schedule'],
+    guide: ['guide'],
+    emergency: ['emergency'],
+  };
+
+  const moveTeacherNavItem = async (tabKey: string, direction: 'up' | 'down') => {
+    const index = teacherNavOrder.indexOf(tabKey);
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= teacherNavOrder.length) return;
+
+    const next = [...teacherNavOrder];
+    const temp = next[index];
+    next[index] = next[targetIndex];
+    next[targetIndex] = temp;
+
+    setTeacherNavOrder(next);
+    await saveNavConfig(
+      {
+        teacherOrder: next,
+        hiddenTeacherMenus,
+        hiddenStudentMenus,
+      },
+      currentUser?.name || '담임교사'
+    );
+  };
+
+  const toggleTeacherNavItemVisibility = async (tabKey: string) => {
+    const isCurrentlyHidden = hiddenTeacherMenus.includes(tabKey);
+    const nextHiddenTeachers = isCurrentlyHidden
+      ? hiddenTeacherMenus.filter((k) => k !== tabKey)
+      : [...hiddenTeacherMenus, tabKey];
+
+    // Check linked student tabs and sync them too
+    const linkedStudentTabs = TEACHER_TO_STUDENT_TAB_MAP[tabKey] || [];
+    let nextHiddenStudents = [...hiddenStudentMenus];
+    if (linkedStudentTabs.length > 0) {
+      if (isCurrentlyHidden) {
+        nextHiddenStudents = nextHiddenStudents.filter((k) => !linkedStudentTabs.includes(k));
+      } else {
+        linkedStudentTabs.forEach((sk) => {
+          if (!nextHiddenStudents.includes(sk)) nextHiddenStudents.push(sk);
+        });
+      }
+    }
+
+    setHiddenTeacherMenus(nextHiddenTeachers);
+    setHiddenStudentMenus(nextHiddenStudents);
+
+    await saveNavConfig(
+      {
+        teacherOrder: teacherNavOrder,
+        hiddenTeacherMenus: nextHiddenTeachers,
+        hiddenStudentMenus: nextHiddenStudents,
+      },
+      currentUser?.name || '담임교사'
+    );
+
+    if (isCurrentlyHidden) {
+      triggerToast(`'${tabKey}' 메뉴가 노출 상태로 변경되었습니다.`);
+    } else {
+      triggerToast(
+        linkedStudentTabs.length > 0
+          ? `'${tabKey}' 메뉴가 숨김 처리되었습니다. (학생 화면에서도 동시 숨김)`
+          : `'${tabKey}' 메뉴가 교사 사이드바에서 숨김 처리되었습니다.`
+      );
+    }
+  };
+
+  const toggleStudentNavItemVisibility = async (studentTabKey: string) => {
+    const isCurrentlyHidden = hiddenStudentMenus.includes(studentTabKey);
+    const nextHiddenStudents = isCurrentlyHidden
+      ? hiddenStudentMenus.filter((k) => k !== studentTabKey)
+      : [...hiddenStudentMenus, studentTabKey];
+
+    setHiddenStudentMenus(nextHiddenStudents);
+
+    await saveNavConfig(
+      {
+        teacherOrder: teacherNavOrder,
+        hiddenTeacherMenus,
+        hiddenStudentMenus: nextHiddenStudents,
+      },
+      currentUser?.name || '담임교사'
+    );
+
+    const studentTabNames: Record<string, string> = {
+      guide: '학생 종합 안내서',
+      student_rooms: '학생 숙소 방배치',
+      quiz: '실시간 돌발 퀴즈',
+      photo_mission: '사진 인증 미션',
+      schedule: '수학여행세부일정표',
+      emergency: '비상 연락망 & 안전',
+    };
+    const tabName = studentTabNames[studentTabKey] || studentTabKey;
+
+    if (isCurrentlyHidden) {
+      triggerToast(`학생 메뉴 '${tabName}'이(가) 학생들에게 공개(노출)되었습니다.`);
+    } else {
+      triggerToast(`학생 메뉴 '${tabName}'이(가) 학생 화면에서 숨김 처리되었습니다.`);
+    }
+  };
+
+  const setAllStudentMenusVisible = async () => {
+    setHiddenStudentMenus([]);
+    await saveNavConfig(
+      {
+        teacherOrder: teacherNavOrder,
+        hiddenTeacherMenus,
+        hiddenStudentMenus: [],
+      },
+      currentUser?.name || '담임교사'
+    );
+    triggerToast('모든 학생 메뉴가 학생들에게 공개되었습니다.');
+  };
+
+  const hideAllStudentActivityMenus = async () => {
+    const activityKeys = ['quiz', 'photo_mission', 'student_rooms'];
+    const nextHidden = Array.from(new Set([...hiddenStudentMenus, ...activityKeys]));
+    setHiddenStudentMenus(nextHidden);
+    await saveNavConfig(
+      {
+        teacherOrder: teacherNavOrder,
+        hiddenTeacherMenus,
+        hiddenStudentMenus: nextHidden,
+      },
+      currentUser?.name || '담임교사'
+    );
+    triggerToast('돌발 퀴즈, 사진 미션, 숙소 방배치 메뉴가 학생 화면에서 비공개 처리되었습니다.');
+  };
+
+  const resetTeacherNavOrder = async () => {
+    setTeacherNavOrder(DEFAULT_TEACHER_NAV_ORDER);
+    setHiddenTeacherMenus([]);
+    setHiddenStudentMenus([]);
+    await saveNavConfig(
+      {
+        teacherOrder: DEFAULT_TEACHER_NAV_ORDER,
+        hiddenTeacherMenus: [],
+        hiddenStudentMenus: [],
+      },
+      currentUser?.name || '담임교사'
+    );
+    triggerToast('메뉴 순서 및 숨김 설정이 모두 기본값으로 초기화되었습니다.');
+  };
 
   // Teacher Authentication Code (managed by Vice Principal & Grade Head)
   const [teacherAuthCode, setTeacherAuthCode] = useState<string>('2026');
@@ -64,6 +238,22 @@ export default function App() {
     try {
       const savedAuthCode = localStorage.getItem('jj_teacher_auth_code');
       if (savedAuthCode) setTeacherAuthCode(savedAuthCode);
+
+      getNavConfig().then((cfg) => {
+        if (cfg.teacherOrder && cfg.teacherOrder.length > 0) {
+          const fullOrder = [...cfg.teacherOrder];
+          DEFAULT_TEACHER_NAV_ORDER.forEach((key) => {
+            if (!fullOrder.includes(key)) fullOrder.push(key);
+          });
+          setTeacherNavOrder(fullOrder);
+        }
+        if (cfg.hiddenTeacherMenus) {
+          setHiddenTeacherMenus(cfg.hiddenTeacherMenus);
+        }
+        if (cfg.hiddenStudentMenus) {
+          setHiddenStudentMenus(cfg.hiddenStudentMenus);
+        }
+      });
 
       const savedStudents = localStorage.getItem('jj_students_roster_v1');
       if (savedStudents) {
@@ -124,6 +314,23 @@ export default function App() {
     const unsubscribe = subscribeToUpdates((type) => {
       if (type === 'notices' || type === 'poll') {
         fetchNotices();
+      }
+      if (type === 'nav_config' || type === 'poll') {
+        getNavConfig().then((cfg) => {
+          if (cfg.teacherOrder && cfg.teacherOrder.length > 0) {
+            const fullOrder = [...cfg.teacherOrder];
+            DEFAULT_TEACHER_NAV_ORDER.forEach((key) => {
+              if (!fullOrder.includes(key)) fullOrder.push(key);
+            });
+            setTeacherNavOrder(fullOrder);
+          }
+          if (cfg.hiddenTeacherMenus) {
+            setHiddenTeacherMenus(cfg.hiddenTeacherMenus);
+          }
+          if (cfg.hiddenStudentMenus) {
+            setHiddenStudentMenus(cfg.hiddenStudentMenus);
+          }
+        });
       }
     });
 
@@ -367,7 +574,31 @@ export default function App() {
     { icon: <ShieldAlert className="w-4 h-4" />, label: '비상 연락망 & 안전', tab: 'emergency' },
   ];
 
-  const navItems = isStudent ? studentNavItems : isParent ? parentNavItems : teacherNavItems;
+  const sortedTeacherNavItems = [...teacherNavItems].sort((a, b) => {
+    const idxA = teacherNavOrder.indexOf(a.tab);
+    const idxB = teacherNavOrder.indexOf(b.tab);
+    const posA = idxA === -1 ? 999 : idxA;
+    const posB = idxB === -1 ? 999 : idxB;
+    return posA - posB;
+  });
+
+  const visibleStudentNavItems = studentNavItems.filter((item) => !hiddenStudentMenus.includes(item.tab));
+
+  const visibleTeacherNavItems = isNavInlineEdit
+    ? sortedTeacherNavItems
+    : sortedTeacherNavItems.filter((item) => !hiddenTeacherMenus.includes(item.tab));
+
+  const navItems = isStudent ? visibleStudentNavItems : isParent ? parentNavItems : visibleTeacherNavItems;
+
+  // Auto redirect student if current tab is hidden by teacher
+  useEffect(() => {
+    if (isStudent && hiddenStudentMenus.includes(activeTab)) {
+      const remainingTabs = studentNavItems.filter((i) => !hiddenStudentMenus.includes(i.tab)).map((i) => i.tab);
+      const nextTab = remainingTabs[0] || 'guide';
+      setActiveTab(nextTab);
+      triggerToast('담임선생님께서 해당 메뉴를 비공개 처리하셨습니다.');
+    }
+  }, [hiddenStudentMenus, isStudent, activeTab]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f7f6f2] font-sans antialiased text-slate-900 overflow-x-hidden">
@@ -483,8 +714,50 @@ export default function App() {
 
           {/* Navigation Links */}
           <nav className="p-4 space-y-1 mt-2 text-xs font-medium">
-            {navItems.map((item) => {
+            {!isStudent && !isParent && (
+              <div className="px-1 pb-2 flex items-center justify-between border-b border-slate-100/50 mb-1.5">
+                <div className="flex items-center space-x-1.5">
+                  <span className={`text-[10px] font-black uppercase tracking-wider ${isHead ? 'text-indigo-200' : 'text-slate-400'}`}>
+                    교사 메뉴
+                  </span>
+                  {hiddenTeacherMenus.length > 0 && !isNavInlineEdit && (
+                    <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300">
+                      {hiddenTeacherMenus.length}개 숨김
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsNavInlineEdit(!isNavInlineEdit)}
+                    className={`text-[10px] px-2 py-0.5 rounded-md font-bold transition-all ${
+                      isNavInlineEdit
+                        ? 'bg-amber-400 text-amber-950 font-black ring-2 ring-amber-300/50'
+                        : isHead
+                        ? 'bg-white/10 text-indigo-200 hover:text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    title="사이드바에서 메뉴 순서 및 숨김/노출 빠르게 설정"
+                  >
+                    {isNavInlineEdit ? '✓ 완료' : '순서·숨김'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNavOrderModalOpen(true)}
+                    className={`p-1 rounded-md transition-all ${
+                      isHead ? 'text-amber-300 hover:bg-white/10' : 'text-blue-600 hover:bg-blue-50'
+                    }`}
+                    title="메뉴 순서 & 학생 메뉴 공개 상세 관리"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {navItems.map((item, index) => {
               const isActive = activeTab === item.tab;
+              const isHidden = !isStudent && !isParent && hiddenTeacherMenus.includes(item.tab);
               let activeClass = '';
               let hoverClass = '';
 
@@ -503,28 +776,82 @@ export default function App() {
               }
 
               return (
-                <button
-                  key={item.tab}
-                  onClick={() => {
-                    setActiveTab(item.tab);
-                    setSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-2xl transition-all text-left ${
-                    isActive ? activeClass : hoverClass
-                  }`}
-                >
-                  <span className="shrink-0">{item.icon}</span>
-                  <span className="flex-1 font-bold text-xs truncate">{item.label}</span>
-                  {item.badge && (
-                    <span
-                      className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
-                        isActive ? 'bg-amber-950/20 text-amber-950' : 'bg-amber-400 text-amber-950'
-                      }`}
-                    >
-                      {item.badge}
+                <div key={item.tab} className="relative group/nav flex items-center">
+                  <button
+                    onClick={() => {
+                      setActiveTab(item.tab);
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-2xl transition-all text-left ${
+                      isHidden ? 'opacity-40 hover:opacity-80 bg-slate-100/40 border border-dashed border-rose-300/60' : isActive ? activeClass : hoverClass
+                    }`}
+                  >
+                    <span className="shrink-0">{item.icon}</span>
+                    <span className={`flex-1 font-bold text-xs truncate ${isHidden ? 'line-through text-slate-400' : ''}`}>
+                      {item.label}
                     </span>
+                    {isHidden && isNavInlineEdit && (
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                        숨김
+                      </span>
+                    )}
+                    {item.badge && !isNavInlineEdit && !isHidden && (
+                      <span
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                          isActive ? 'bg-amber-950/20 text-amber-950' : 'bg-amber-400 text-amber-950'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Inline Reorder & Visibility Buttons (When isNavInlineEdit is active) */}
+                  {!isStudent && !isParent && isNavInlineEdit && (
+                    <div className="flex items-center space-x-0.5 pr-1 shrink-0 ml-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => moveTeacherNavItem(item.tab, 'up')}
+                        className={`p-1 rounded transition-colors ${
+                          isHead
+                            ? 'bg-indigo-900/80 text-indigo-200 hover:bg-amber-400 hover:text-amber-950 disabled:opacity-20'
+                            : 'bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-700 disabled:opacity-25'
+                        }`}
+                        title="위로 이동"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === navItems.length - 1}
+                        onClick={() => moveTeacherNavItem(item.tab, 'down')}
+                        className={`p-1 rounded transition-colors ${
+                          isHead
+                            ? 'bg-indigo-900/80 text-indigo-200 hover:bg-amber-400 hover:text-amber-950 disabled:opacity-20'
+                            : 'bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-700 disabled:opacity-25'
+                        }`}
+                        title="아래로 이동"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleTeacherNavItemVisibility(item.tab)}
+                        className={`p-1 rounded transition-colors ${
+                          isHidden
+                            ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-xs'
+                            : isHead
+                            ? 'bg-indigo-900/80 text-emerald-300 hover:bg-emerald-400 hover:text-emerald-950'
+                            : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                        }`}
+                        title={isHidden ? '숨김 해제 (다시 노출하기)' : '이 메뉴 숨기기 (학생 화면도 연동)'}
+                      >
+                        {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </nav>
@@ -798,20 +1125,33 @@ export default function App() {
             </>
           ) : isStudent ? (
             <>
-              <button
-                onClick={() => setActiveTab('guide')}
-                className={`flex flex-col items-center p-1 ${activeTab === 'guide' ? 'text-emerald-600 font-black' : 'text-slate-400'}`}
-              >
-                <BookOpen className="w-5 h-5 mb-0.5" />
-                <span>안내서</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('quiz')}
-                className={`flex flex-col items-center p-1 ${activeTab === 'quiz' ? 'text-amber-500 font-black' : 'text-slate-400'}`}
-              >
-                <HelpCircle className="w-5 h-5 mb-0.5" />
-                <span>돌발퀴즈</span>
-              </button>
+              {!hiddenStudentMenus.includes('guide') && (
+                <button
+                  onClick={() => setActiveTab('guide')}
+                  className={`flex flex-col items-center p-1 ${activeTab === 'guide' ? 'text-emerald-600 font-black' : 'text-slate-400'}`}
+                >
+                  <BookOpen className="w-5 h-5 mb-0.5" />
+                  <span>안내서</span>
+                </button>
+              )}
+              {!hiddenStudentMenus.includes('student_rooms') && (
+                <button
+                  onClick={() => setActiveTab('student_rooms')}
+                  className={`flex flex-col items-center p-1 ${activeTab === 'student_rooms' ? 'text-indigo-600 font-black' : 'text-slate-400'}`}
+                >
+                  <Hotel className="w-5 h-5 mb-0.5" />
+                  <span>방배치</span>
+                </button>
+              )}
+              {!hiddenStudentMenus.includes('quiz') && (
+                <button
+                  onClick={() => setActiveTab('quiz')}
+                  className={`flex flex-col items-center p-1 ${activeTab === 'quiz' ? 'text-amber-500 font-black' : 'text-slate-400'}`}
+                >
+                  <HelpCircle className="w-5 h-5 mb-0.5" />
+                  <span>돌발퀴즈</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (currentUser) handleBoardingToggle(currentUser.id, currentUser.bus_status);
@@ -823,13 +1163,24 @@ export default function App() {
                 </div>
                 <span className="font-black">탑승체크</span>
               </button>
-              <button
-                onClick={() => setActiveTab('photo_mission')}
-                className={`flex flex-col items-center p-1 ${activeTab === 'photo_mission' ? 'text-pink-600 font-black' : 'text-slate-400'}`}
-              >
-                <Camera className="w-5 h-5 mb-0.5" />
-                <span>사진미션</span>
-              </button>
+              {!hiddenStudentMenus.includes('photo_mission') && (
+                <button
+                  onClick={() => setActiveTab('photo_mission')}
+                  className={`flex flex-col items-center p-1 ${activeTab === 'photo_mission' ? 'text-pink-600 font-black' : 'text-slate-400'}`}
+                >
+                  <Camera className="w-5 h-5 mb-0.5" />
+                  <span>사진미션</span>
+                </button>
+              )}
+              {!hiddenStudentMenus.includes('schedule') && hiddenStudentMenus.includes('quiz') && (
+                <button
+                  onClick={() => setActiveTab('schedule')}
+                  className={`flex flex-col items-center p-1 ${activeTab === 'schedule' ? 'text-emerald-600 font-black' : 'text-slate-400'}`}
+                >
+                  <CalendarRange className="w-5 h-5 mb-0.5" />
+                  <span>일정표</span>
+                </button>
+              )}
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="flex flex-col items-center p-1 text-slate-400"
@@ -1145,6 +1496,295 @@ export default function App() {
                   확인 완료
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Navigation Customization & Student Menu Visibility Modal */}
+      {navOrderModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-slate-200 space-y-4 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900 leading-tight">
+                    네비게이션 메뉴 관리
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    교사 사이드바 순서/숨김 및 학생 화면 공개 실시간 제어
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setNavOrderModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mode Switch Tabs */}
+            <div className="flex rounded-2xl bg-slate-100 p-1 space-x-1">
+              <button
+                type="button"
+                onClick={() => setNavModalActiveTab('teacher')}
+                className={`flex-1 py-2 text-xs font-black rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
+                  navModalActiveTab === 'teacher'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>🧑‍🏫 교사 메뉴 순서 & 숨김</span>
+                {hiddenTeacherMenus.length > 0 && (
+                  <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-full font-bold">
+                    {hiddenTeacherMenus.length}숨김
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setNavModalActiveTab('student')}
+                className={`flex-1 py-2 text-xs font-black rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
+                  navModalActiveTab === 'student'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>🎒 학생 메뉴 공개 제어</span>
+                {hiddenStudentMenus.length > 0 ? (
+                  <span className="text-[10px] bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded-full font-bold">
+                    {hiddenStudentMenus.length}숨김
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-emerald-700/80 text-emerald-100 px-1.5 py-0.2 rounded-full font-bold">
+                    전체공개
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* TAB 1: 교사 메뉴 순서 & 숨김 설정 */}
+            {navModalActiveTab === 'teacher' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+                  <span>자주 쓰는 메뉴를 <b>▲·▼</b>로 이동하거나 <b>숨김(눈)</b> 처리하세요.</span>
+                  <span className="text-[10px] text-slate-400">총 {sortedTeacherNavItems.length}개 메뉴</span>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1 no-scrollbar">
+                  {sortedTeacherNavItems.map((item, idx) => {
+                    const isHidden = hiddenTeacherMenus.includes(item.tab);
+                    const isLinkedToStudent = Boolean(TEACHER_TO_STUDENT_TAB_MAP[item.tab]);
+                    return (
+                      <div
+                        key={item.tab}
+                        className={`flex items-center justify-between p-2.5 rounded-2xl border transition-all ${
+                          isHidden
+                            ? 'bg-slate-50/60 border-slate-200/60 opacity-60'
+                            : 'bg-white border-slate-200/90 shadow-2xs'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
+                            isHidden ? 'bg-slate-200 text-slate-500' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <span className="text-slate-700 shrink-0">{item.icon}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center space-x-1.5 truncate">
+                              <p className={`font-bold text-xs truncate ${isHidden ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                {item.label}
+                              </p>
+                              {isLinkedToStudent && (
+                                <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-1 py-0.2 rounded shrink-0" title="숨김 시 학생 화면 연동">
+                                  학생연동
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-1 mt-0.5">
+                              {isHidden ? (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700 inline-block">
+                                  🙈 숨김 상태
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 inline-block">
+                                  👁️ 노출 중
+                                </span>
+                              )}
+                              {item.badge && (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 inline-block">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-1 shrink-0 ml-2">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveTeacherNavItem(item.tab, 'up')}
+                            className="p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-25 transition-colors"
+                            title="위로 이동"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === sortedTeacherNavItems.length - 1}
+                            onClick={() => moveTeacherNavItem(item.tab, 'down')}
+                            className="p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 disabled:opacity-25 transition-colors"
+                            title="아래로 이동"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleTeacherNavItemVisibility(item.tab)}
+                            className={`p-1.5 rounded-lg border text-xs font-bold flex items-center space-x-1 transition-all ${
+                              isHidden
+                                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                            }`}
+                            title={isHidden ? '숨김 해제 (다시 표시)' : '이 메뉴 숨기기'}
+                          >
+                            {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            <span className="text-[10px]">{isHidden ? '숨김' : '노출'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[11px] text-slate-500 bg-blue-50/60 p-2.5 rounded-xl border border-blue-100">
+                  💡 <b>학생 화면 연동 안내</b>: 숙소 방배치, 돌발퀴즈/사진미션, 일정표 등은 여기서 숨기면 학생 스마트폰/PC 화면에서도 자동으로 연동되어 함께 숨김 처리됩니다.
+                </p>
+              </div>
+            )}
+
+            {/* TAB 2: 학생 메뉴 공개/숨김 관리 (실시간 동기화) */}
+            {navModalActiveTab === 'student' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-100">
+                  <span className="text-[11px] font-bold text-emerald-900 leading-tight">
+                    학생들에게 보여줄 메뉴를 켜거나 끌 수 있습니다. (실시간 반영)
+                  </span>
+                  <div className="flex items-center space-x-1 shrink-0 ml-1">
+                    <button
+                      type="button"
+                      onClick={setAllStudentMenusVisible}
+                      className="px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                      title="모든 학생 메뉴 노출"
+                    >
+                      전체 공개
+                    </button>
+                    <button
+                      type="button"
+                      onClick={hideAllStudentActivityMenus}
+                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors"
+                      title="돌발 퀴즈/사진 미션/숙소 방배치 일괄 숨김"
+                    >
+                      활동 외 잠금
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1 no-scrollbar">
+                  {[
+                    { tab: 'student_rooms', label: '학생 숙소 방배치', desc: '호실 배정 현황 및 친구들 방 번호(539호 등) 조회', icon: <Hotel className="w-4 h-4 text-indigo-500" /> },
+                    { tab: 'quiz', label: '실시간 돌발 퀴즈', desc: '인솔 교사가 발제한 퀴즈 실시간 정답 제출', icon: <HelpCircle className="w-4 h-4 text-amber-500" /> },
+                    { tab: 'photo_mission', label: '사진 인증 미션', desc: '장소별 미션 스탬프 촬영 및 사진 업로드', icon: <Camera className="w-4 h-4 text-pink-500" /> },
+                    { tab: 'schedule', label: '수학여행세부일정표', desc: '1~3일차 상세 타임라인 및 단체 식사 메뉴 안내', icon: <CalendarRange className="w-4 h-4 text-emerald-600" /> },
+                    { tab: 'guide', label: '학생 스마트 종합 안내서', desc: '준비물 체크리스트 및 학급별 교사 연락망', icon: <LayoutDashboard className="w-4 h-4 text-blue-600" /> },
+                    { tab: 'emergency', label: '비상 연락망 & 안전 기관', desc: '119, 경찰서, 인근 병원 비상 직통 전화', icon: <ShieldAlert className="w-4 h-4 text-rose-500" /> },
+                  ].map((sItem) => {
+                    const isHidden = hiddenStudentMenus.includes(sItem.tab);
+                    return (
+                      <div
+                        key={sItem.tab}
+                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                          isHidden
+                            ? 'bg-rose-50/40 border-rose-200/80'
+                            : 'bg-white border-slate-200/80 shadow-2xs'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3 min-w-0 mr-2">
+                          <div className={`p-2 rounded-xl shrink-0 ${isHidden ? 'bg-slate-100 text-slate-400' : 'bg-slate-50'}`}>
+                            {sItem.icon}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center space-x-1.5">
+                              <p className={`font-black text-xs ${isHidden ? 'text-rose-900 line-through' : 'text-slate-900'}`}>
+                                {sItem.label}
+                              </p>
+                              {isHidden ? (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-rose-200 text-rose-900">
+                                  학생에게 숨김
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800">
+                                  학생에게 공개
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                              {sItem.desc}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleStudentNavItemVisibility(sItem.tab)}
+                          className={`px-3 py-1.5 rounded-xl font-black text-xs transition-all flex items-center space-x-1 shrink-0 ${
+                            isHidden
+                              ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-xs'
+                              : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs'
+                          }`}
+                        >
+                          {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          <span>{isHidden ? '숨김 해제' : '숨기기'}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  📡 <b>실시간 반영</b>: 교사가 여기서 숨김 버튼을 누르면 학생들의 스마트폰/PC 화면에서 해당 메뉴가 즉시 사라집니다. 만약 학생이 해당 메뉴를 보고 있었다면 메인 안내서 화면으로 안전하게 자동 전환됩니다.
+                </p>
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={resetTeacherNavOrder}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 flex items-center space-x-1 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>기본값 초기화</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setNavOrderModalOpen(false);
+                  triggerToast('✅ 네비게이션 메뉴 설정이 저장 및 실시간 반영되었습니다.');
+                }}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md transition-all"
+              >
+                설정 완료
+              </button>
             </div>
           </div>
         </div>

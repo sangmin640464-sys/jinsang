@@ -31,6 +31,32 @@ export interface QaMessage {
 const STORAGE_KEY_NOTICES = 'jj_class_notices_v1';
 const STORAGE_KEY_GALLERY = 'jj_class_galleries_v1';
 const STORAGE_KEY_QA = 'jj_qa_messages_v1';
+export const STORAGE_KEY_NAV_CONFIG = 'jj_nav_config_v2';
+
+export interface NavConfig {
+  teacherOrder?: string[];
+  hiddenTeacherMenus?: string[];
+  hiddenStudentMenus?: string[];
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export const DEFAULT_NAV_CONFIG: NavConfig = {
+  teacherOrder: [
+    'dashboard',
+    'attendance',
+    'rooms_management',
+    'classes',
+    'activities_control',
+    'parent_communication',
+    'guide',
+    'schedule',
+    'ai',
+    'emergency'
+  ],
+  hiddenTeacherMenus: [],
+  hiddenStudentMenus: []
+};
 
 export const DEFAULT_NOTICES: ClassNotice[] = [
   {
@@ -78,7 +104,7 @@ const getBroadcastChannel = () => {
   return null;
 };
 
-export const broadcastUpdate = (type: 'notices' | 'gallery' | 'qa' | 'activities') => {
+export const broadcastUpdate = (type: 'notices' | 'gallery' | 'qa' | 'activities' | 'nav_config') => {
   try {
     const channel = getBroadcastChannel();
     if (channel) {
@@ -104,6 +130,7 @@ export const subscribeToUpdates = (callback: (type: string) => void) => {
     if (e.key === STORAGE_KEY_GALLERY) callback('gallery');
     if (e.key === STORAGE_KEY_QA) callback('qa');
     if (e.key?.startsWith('jj_quiz') || e.key?.startsWith('jj_mission')) callback('activities');
+    if (e.key === STORAGE_KEY_NAV_CONFIG) callback('nav_config');
   };
 
   if (channel) {
@@ -121,6 +148,90 @@ export const subscribeToUpdates = (callback: (type: string) => void) => {
     window.removeEventListener('storage', handleStorage);
     clearInterval(pollInterval);
   };
+};
+
+export const getNavConfig = async (): Promise<NavConfig> => {
+  let config: NavConfig = { ...DEFAULT_NAV_CONFIG };
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_NAV_CONFIG);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      config = { ...config, ...parsed };
+    }
+  } catch (e) {}
+
+  try {
+    const { data, error } = await supabase
+      .from('class_notices')
+      .select('content')
+      .eq('title', '__NAV_CONFIG__')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (!error && data && data.length > 0 && data[0]?.content) {
+      const remoteConfig = JSON.parse(data[0].content);
+      config = { ...config, ...remoteConfig };
+      try {
+        localStorage.setItem(STORAGE_KEY_NAV_CONFIG, JSON.stringify(config));
+      } catch (e) {}
+    }
+  } catch (e) {
+    console.warn('Supabase getNavConfig error:', e);
+  }
+
+  return config;
+};
+
+export const saveNavConfig = async (newConfig: Partial<NavConfig>, authorName: string = '담임교사'): Promise<NavConfig> => {
+  const current = await getNavConfig();
+  const merged: NavConfig = {
+    ...current,
+    ...newConfig,
+    updatedAt: new Date().toISOString(),
+    updatedBy: authorName
+  };
+
+  try {
+    localStorage.setItem(STORAGE_KEY_NAV_CONFIG, JSON.stringify(merged));
+  } catch (e) {}
+
+  broadcastUpdate('nav_config');
+
+  try {
+    const { data } = await supabase
+      .from('class_notices')
+      .select('id')
+      .eq('title', '__NAV_CONFIG__')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      await supabase
+        .from('class_notices')
+        .update({
+          content: JSON.stringify(merged),
+          date: '네비설정',
+          author: authorName
+        })
+        .eq('id', data[0].id);
+    } else {
+      await supabase
+        .from('class_notices')
+        .insert([
+          {
+            class_no: 0,
+            title: '__NAV_CONFIG__',
+            content: JSON.stringify(merged),
+            date: '네비설정',
+            author: authorName
+          }
+        ]);
+    }
+  } catch (e) {
+    console.warn('Supabase saveNavConfig error:', e);
+  }
+
+  return merged;
 };
 
 // ----------------- NOTICES -----------------
