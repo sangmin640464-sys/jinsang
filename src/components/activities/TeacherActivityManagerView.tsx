@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   HelpCircle, Camera, Plus, CheckCircle2, Trophy, Clock, X, Trash2, Send, Eye, RefreshCw, Sparkles,
-  MessageSquare, ExternalLink, Copy, Share2
+  MessageSquare, ExternalLink, Copy, Share2, Pencil
 } from 'lucide-react';
 import {
   Quiz, QuizSubmission, TripMission, MissionSubmission,
-  getQuizzes, createQuiz, updateQuizStatus, getQuizSubmissions,
-  getMissions, createMission, getMissionSubmissions, subscribeToUpdates
+  getQuizzes, createQuiz, updateQuiz, deleteQuiz, updateQuizStatus, getQuizSubmissions,
+  getMissions, createMission, updateMission, deleteMission, getMissionSubmissions, subscribeToUpdates
 } from '../../utils/communicationService';
 import { alertSoundPlayer } from '../../utils/alertEffects';
 import { OPEN_KAKAO_URL } from '../../data/mapImages';
@@ -32,6 +32,13 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
   const [newQuizTarget, setNewQuizTarget] = useState<'all' | 'class'>('all');
   const [showNewQuizModal, setShowNewQuizModal] = useState(false);
 
+  // Edit Quiz State
+  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [editQuizQuestion, setEditQuizQuestion] = useState('');
+  const [editQuizAnswer, setEditQuizAnswer] = useState('');
+  const [editQuizHint, setEditQuizHint] = useState('');
+  const [editQuizTarget, setEditQuizTarget] = useState<'all' | 'class'>('all');
+
   // Mission State
   const [missions, setMissions] = useState<TripMission[]>([]);
   const [missionSubmissions, setMissionSubmissions] = useState<MissionSubmission[]>([]);
@@ -39,6 +46,12 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
   const [newMissionDesc, setNewMissionDesc] = useState('');
   const [newMissionPoints, setNewMissionPoints] = useState(100);
   const [showNewMissionModal, setShowNewMissionModal] = useState(false);
+
+  // Edit Mission State
+  const [editingMission, setEditingMission] = useState<TripMission | null>(null);
+  const [editMissionTitle, setEditMissionTitle] = useState('');
+  const [editMissionDesc, setEditMissionDesc] = useState('');
+  const [editMissionPoints, setEditMissionPoints] = useState(100);
 
   const [loading, setLoading] = useState(true);
 
@@ -182,6 +195,88 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
     }
   };
 
+  // Quiz Edit & Delete Handlers
+  const openEditQuizModal = (q: Quiz) => {
+    setEditingQuiz(q);
+    setEditQuizQuestion(q.question);
+    setEditQuizAnswer(q.answer);
+    setEditQuizHint(q.hint || '');
+    setEditQuizTarget(q.targetAudience || 'all');
+  };
+
+  const handleUpdateQuiz = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuiz || !editQuizQuestion.trim() || !editQuizAnswer.trim()) {
+      alert('퀴즈 문제와 정답을 입력하세요.');
+      return;
+    }
+    try {
+      await updateQuiz(editingQuiz.id, {
+        question: editQuizQuestion.trim(),
+        answer: editQuizAnswer.trim(),
+        hint: editQuizHint.trim() || undefined,
+        targetAudience: editQuizTarget,
+      });
+      triggerToast('돌발 퀴즈가 성공적으로 수정되었습니다.');
+      setEditingQuiz(null);
+      loadAll();
+    } catch (e) {
+      triggerToast('퀴즈 수정 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    if (window.confirm('이 돌발 퀴즈를 정말 삭제하시겠습니까?\n학생 화면에서도 실시간으로 삭제됩니다.')) {
+      try {
+        await deleteQuiz(quizId);
+        triggerToast('돌발 퀴즈가 삭제되었습니다.');
+        loadAll();
+      } catch (e) {
+        triggerToast('퀴즈 삭제 중 오류가 발생했습니다.');
+      }
+    }
+  };
+
+  // Mission Edit & Delete Handlers
+  const openEditMissionModal = (m: TripMission) => {
+    setEditingMission(m);
+    setEditMissionTitle(m.title);
+    setEditMissionDesc(m.description);
+    setEditMissionPoints(m.points || 100);
+  };
+
+  const handleUpdateMission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMission || !editMissionTitle.trim() || !editMissionDesc.trim()) {
+      alert('미션 제목과 가이드를 입력하세요.');
+      return;
+    }
+    try {
+      await updateMission(editingMission.id, {
+        title: editMissionTitle.trim(),
+        description: editMissionDesc.trim(),
+        points: editMissionPoints || 100,
+      });
+      triggerToast('사진 미션이 성공적으로 수정되었습니다.');
+      setEditingMission(null);
+      loadAll();
+    } catch (e) {
+      triggerToast('미션 수정 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleDeleteMission = async (missionId: string) => {
+    if (window.confirm('이 사진 미션을 정말 삭제하시겠습니까?\n학생 화면에서도 실시간으로 삭제됩니다.')) {
+      try {
+        await deleteMission(missionId);
+        triggerToast('사진 미션이 삭제되었습니다.');
+        loadAll();
+      } catch (e) {
+        triggerToast('미션 삭제 중 오류가 발생했습니다.');
+      }
+    }
+  };
+
   const currentQuiz = quizzes.find((q) => q.id === selectedQuizId) || quizzes[0];
   const currentQuizSubs = currentQuiz
     ? quizSubmissions.filter((s) => s.quizId === currentQuiz.id)
@@ -291,15 +386,31 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
                       <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700">
                         Q{idx + 1}
                       </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          q.status === 'active'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        {q.status === 'active' ? '진행중' : '마감'}
-                      </span>
+                      <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            q.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {q.status === 'active' ? '진행중' : '마감'}
+                        </span>
+                        <button
+                          onClick={() => openEditQuizModal(q)}
+                          className="p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-white transition-colors"
+                          title="퀴즈 수정"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteQuiz(q.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-white transition-colors"
+                          title="퀴즈 삭제"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                     <p className="font-bold text-xs text-slate-800 line-clamp-2">
                       {q.question}
@@ -338,6 +449,24 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>카톡방 알림 전송</span>
+                    </button>
+
+                    <button
+                      onClick={() => openEditQuizModal(currentQuiz)}
+                      className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors flex items-center space-x-1 border border-blue-200/50"
+                      title="퀴즈 질문, 정답, 힌트 수정"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>수정</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteQuiz(currentQuiz.id)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition-colors flex items-center space-x-1 border border-rose-200/50"
+                      title="이 돌발 퀴즈 삭제"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>삭제</span>
                     </button>
 
                     {currentQuiz.status === 'active' ? (
@@ -455,12 +584,30 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
               return (
                 <div key={m.id} className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-soft space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
-                      인증 미션
-                    </span>
-                    <span className="text-xs font-black text-amber-600">
-                      ★ {m.points}점
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                        인증 미션
+                      </span>
+                      <span className="text-xs font-black text-amber-600">
+                        ★ {m.points}점
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => openEditMissionModal(m)}
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        title="미션 내용 수정"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMission(m.id)}
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        title="미션 삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <h3 className="font-black text-base text-slate-900">{m.title}</h3>
                   <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100">
@@ -676,6 +823,147 @@ export const TeacherActivityManagerView: React.FC<TeacherActivityManagerViewProp
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs shadow-md"
                 >
                   미션 등록하기
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL 3: Edit Quiz */}
+      {editingQuiz && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 space-y-4 shadow-xl">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
+                <Pencil className="w-5 h-5 text-amber-500" />
+                <span>돌발 퀴즈 내용 수정</span>
+              </h3>
+              <button onClick={() => setEditingQuiz(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateQuiz} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  퀴즈 문제 내용
+                </label>
+                <textarea
+                  rows={3}
+                  value={editQuizQuestion}
+                  onChange={(e) => setEditQuizQuestion(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-hidden focus:border-amber-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  정답 (띄어쓰기 무관하게 자동 채점됨)
+                </label>
+                <input
+                  type="text"
+                  value={editQuizAnswer}
+                  onChange={(e) => setEditQuizAnswer(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-hidden focus:border-amber-500 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  힌트 (선택)
+                </label>
+                <input
+                  type="text"
+                  value={editQuizHint}
+                  onChange={(e) => setEditQuizHint(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-hidden focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingQuiz(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-black px-5 py-2.5 rounded-xl text-xs shadow-md"
+                >
+                  수정사항 저장
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: Edit Mission */}
+      {editingMission && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 space-y-4 shadow-xl">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
+                <Pencil className="w-5 h-5 text-indigo-600" />
+                <span>사진 미션 내용 수정</span>
+              </h3>
+              <button onClick={() => setEditingMission(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateMission} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  미션 제목
+                </label>
+                <input
+                  type="text"
+                  value={editMissionTitle}
+                  onChange={(e) => setEditMissionTitle(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-hidden focus:border-indigo-500 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  미션 수행 가이드 및 설명
+                </label>
+                <textarea
+                  rows={3}
+                  value={editMissionDesc}
+                  onChange={(e) => setEditMissionDesc(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-hidden focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  스탬프 배점 (점)
+                </label>
+                <input
+                  type="number"
+                  value={editMissionPoints}
+                  onChange={(e) => setEditMissionPoints(Number(e.target.value))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:outline-hidden focus:border-indigo-500 font-bold"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingMission(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2.5 rounded-xl text-xs shadow-md"
+                >
+                  수정사항 저장
                 </button>
               </div>
             </form>

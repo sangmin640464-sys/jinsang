@@ -843,6 +843,16 @@ export interface QuizSubmission {
 
 const STORAGE_KEY_QUIZZES = 'jj_quizzes_v1';
 const STORAGE_KEY_QUIZ_SUBMISSIONS = 'jj_quiz_submissions_v1';
+const STORAGE_KEY_DELETED_QUIZZES = 'jj_deleted_quizzes_v1';
+
+export const getDeletedQuizIds = (): string[] => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DELETED_QUIZZES);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+};
 
 export const DEFAULT_QUIZZES: Quiz[] = [
   {
@@ -911,10 +921,11 @@ export const getQuizzes = async (): Promise<Quiz[]> => {
     if (saved) localQuizzes = JSON.parse(saved);
   } catch (e) {}
 
+  const deletedIds = new Set(getDeletedQuizIds());
   const map = new Map<string, Quiz>();
-  DEFAULT_QUIZZES.forEach((q) => map.set(q.id, q));
-  localQuizzes.forEach((q) => map.set(q.id, q));
-  remoteQuizzes.forEach((q) => map.set(q.id, q));
+  DEFAULT_QUIZZES.filter((q) => !deletedIds.has(String(q.id))).forEach((q) => map.set(q.id, q));
+  localQuizzes.filter((q) => !deletedIds.has(String(q.id))).forEach((q) => map.set(q.id, q));
+  remoteQuizzes.filter((q) => !deletedIds.has(String(q.id))).forEach((q) => map.set(q.id, q));
 
   return Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 };
@@ -969,6 +980,62 @@ export const createQuiz = async (quiz: Omit<Quiz, 'id' | 'timestamp'>): Promise<
 
   broadcastUpdate('activities');
   return newQuiz;
+};
+
+export const updateQuiz = async (quizId: string, updatedData: Partial<Quiz>): Promise<void> => {
+  try {
+    const payload: any = {};
+    if (updatedData.question !== undefined) payload.question = updatedData.question;
+    if (updatedData.answer !== undefined) payload.answer = updatedData.answer;
+    if (updatedData.hint !== undefined) payload.hint = updatedData.hint || null;
+    if (updatedData.status !== undefined) payload.status = updatedData.status;
+    if (updatedData.targetAudience !== undefined) payload.target_audience = updatedData.targetAudience;
+    if (updatedData.classNo !== undefined) payload.class_no = updatedData.classNo;
+
+    await supabase.from('trip_quizzes').update(payload).eq('id', quizId);
+  } catch (e) {
+    console.warn('Supabase update quiz error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_QUIZZES);
+    if (saved) {
+      const list: Quiz[] = JSON.parse(saved);
+      const updated = list.map((q) => (q.id === quizId ? { ...q, ...updatedData } : q));
+      localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify(updated));
+    }
+  } catch (e) {}
+
+  broadcastUpdate('activities');
+};
+
+export const deleteQuiz = async (quizId: string): Promise<void> => {
+  const strId = String(quizId);
+  try {
+    await supabase.from('trip_quizzes').delete().eq('id', quizId);
+    await supabase.from('class_notices').delete().eq('id', quizId);
+  } catch (e) {
+    console.warn('Supabase delete quiz error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_QUIZZES);
+    if (saved) {
+      const list: Quiz[] = JSON.parse(saved);
+      const filtered = list.filter((q) => String(q.id) !== strId);
+      localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify(filtered));
+    }
+  } catch (e) {}
+
+  try {
+    const deletedList = getDeletedQuizIds();
+    if (!deletedList.includes(strId)) {
+      deletedList.push(strId);
+      localStorage.setItem(STORAGE_KEY_DELETED_QUIZZES, JSON.stringify(deletedList));
+    }
+  } catch (e) {}
+
+  broadcastUpdate('activities');
 };
 
 export const updateQuizStatus = async (quizId: string, status: 'active' | 'closed'): Promise<void> => {
@@ -1134,6 +1201,16 @@ export interface MissionSubmission {
 
 const STORAGE_KEY_MISSIONS = 'jj_missions_v1';
 const STORAGE_KEY_MISSION_SUBMISSIONS = 'jj_mission_submissions_v1';
+const STORAGE_KEY_DELETED_MISSIONS = 'jj_deleted_missions_v1';
+
+export const getDeletedMissionIds = (): string[] => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DELETED_MISSIONS);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+};
 
 export const DEFAULT_MISSIONS: TripMission[] = [
   {
@@ -1211,10 +1288,11 @@ export const getMissions = async (): Promise<TripMission[]> => {
     if (saved) localMissions = JSON.parse(saved);
   } catch (e) {}
 
+  const deletedIds = new Set(getDeletedMissionIds());
   const map = new Map<string, TripMission>();
-  DEFAULT_MISSIONS.forEach((m) => map.set(m.id, m));
-  localMissions.forEach((m) => map.set(m.id, m));
-  remoteMissions.forEach((m) => map.set(m.id, m));
+  DEFAULT_MISSIONS.filter((m) => !deletedIds.has(String(m.id))).forEach((m) => map.set(m.id, m));
+  localMissions.filter((m) => !deletedIds.has(String(m.id))).forEach((m) => map.set(m.id, m));
+  remoteMissions.filter((m) => !deletedIds.has(String(m.id))).forEach((m) => map.set(m.id, m));
 
   return Array.from(map.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 };
@@ -1268,6 +1346,61 @@ export const createMission = async (mission: Omit<TripMission, 'id' | 'timestamp
 
   broadcastUpdate('activities');
   return newMission;
+};
+
+export const updateMission = async (missionId: string, updatedData: Partial<TripMission>): Promise<void> => {
+  try {
+    const payload: any = {};
+    if (updatedData.title !== undefined) payload.title = updatedData.title;
+    if (updatedData.description !== undefined) payload.description = updatedData.description;
+    if (updatedData.points !== undefined) payload.points = updatedData.points;
+    if (updatedData.status !== undefined) payload.status = updatedData.status;
+    if (updatedData.classNo !== undefined) payload.class_no = updatedData.classNo;
+
+    await supabase.from('trip_missions').update(payload).eq('id', missionId);
+  } catch (e) {
+    console.warn('Supabase update mission error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_MISSIONS);
+    if (saved) {
+      const list: TripMission[] = JSON.parse(saved);
+      const updated = list.map((m) => (m.id === missionId ? { ...m, ...updatedData } : m));
+      localStorage.setItem(STORAGE_KEY_MISSIONS, JSON.stringify(updated));
+    }
+  } catch (e) {}
+
+  broadcastUpdate('activities');
+};
+
+export const deleteMission = async (missionId: string): Promise<void> => {
+  const strId = String(missionId);
+  try {
+    await supabase.from('trip_missions').delete().eq('id', missionId);
+    await supabase.from('class_notices').delete().eq('id', missionId);
+  } catch (e) {
+    console.warn('Supabase delete mission error:', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_MISSIONS);
+    if (saved) {
+      const list: TripMission[] = JSON.parse(saved);
+      const filtered = list.filter((m) => String(m.id) !== strId);
+      localStorage.setItem(STORAGE_KEY_MISSIONS, JSON.stringify(filtered));
+    }
+  } catch (e) {}
+
+  try {
+    const deletedList = getDeletedMissionIds();
+    if (!deletedList.includes(strId)) {
+      deletedList.push(strId);
+      localStorage.setItem(STORAGE_KEY_DELETED_MISSIONS, JSON.stringify(deletedList));
+    }
+  } catch (e) {}
+
+  broadcastUpdate('activities');
 };
 
 export const getMissionSubmissions = async (missionId?: string): Promise<MissionSubmission[]> => {
