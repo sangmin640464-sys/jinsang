@@ -664,11 +664,10 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
   const [inputAuthCode, setInputAuthCode] = useState('');
   const [showCode, setShowCode] = useState(false);
 
-  // Student Login States
+  // Student Login States (학번 + 이름 간편 로그인, 비번 없음)
   const [studentClass, setStudentClass] = useState('1');
   const [studentNo, setStudentNo] = useState('');
   const [studentName, setStudentName] = useState('');
-  const [studentBirth, setStudentBirth] = useState('');
 
   // Handle Teacher Login
   const handleTeacherLogin = (e: React.FormEvent) => {
@@ -929,18 +928,9 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
               />
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">
-                비밀번호 (생년월일 4자리)
-              </label>
-              <input
-                type="password"
-                maxLength={4}
-                value={studentBirth}
-                onChange={(e) => setStudentBirth(e.target.value)}
-                placeholder="예: 1014"
-                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400 font-mono tracking-widest"
-              />
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200 flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>별도 비밀번호 없이 <b>학번(반·번호)과 이름</b>만으로 즉시 로그인됩니다.</span>
             </div>
 
 

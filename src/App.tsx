@@ -1838,11 +1838,16 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
   const [inputAuthCode, setInputAuthCode] = useState('');
   const [showCode, setShowCode] = useState(false);
 
-  // Student Login States
+  // Student & Parent Login States (학번 + 이름 간편 로그인, 비번 없음)
   const [studentClass, setStudentClass] = useState('1');
   const [studentNo, setStudentNo] = useState('');
   const [studentName, setStudentName] = useState('');
-  const [studentBirth, setStudentBirth] = useState('');
+
+  const fillStudent = (c: string, no: string, name: string) => {
+    setStudentClass(c);
+    setStudentNo(no);
+    setStudentName(name);
+  };
 
   // Handle Teacher Login
   const handleTeacherLogin = (e: React.FormEvent) => {
@@ -1882,41 +1887,63 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
     }
   };
 
-  // Handle Parent Login
+  // Handle Parent Login (비번 없이 자녀 학번(반·번호) + 이름으로 간편 로그인)
   const handleParentLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentName || !studentBirth) {
-      triggerToast('자녀의 이름과 비밀번호(생년월일 4자리)를 입력해주세요.');
+    const trimmedName = studentName.trim();
+    if (!trimmedName) {
+      triggerToast('자녀의 이름을 입력해주세요.');
       return;
     }
-    const matched = students.find(
-      (s) => s.name.trim() === studentName.trim() && s.class_no === Number(studentClass)
-    ) || students.find(
-      (s) => s.name.trim() === studentName.trim()
+
+    const targetClass = Number(studentClass);
+    const targetNo = Number(studentNo);
+
+    const matched = students.find((s) => {
+      const matchName = s.name.trim() === trimmedName;
+      if (!matchName) return false;
+      if (targetClass && targetNo && s.class_no === targetClass && s.student_no === targetNo) return true;
+      if (targetClass && s.class_no === targetClass) return true;
+      return false;
+    }) || students.find(
+      (s) => s.name.trim() === trimmedName
     );
 
-    const actualClass = matched ? matched.class_no : (Number(studentClass) || 4);
-    const actualNo = matched ? matched.student_no : 0;
+    const actualClass = matched ? matched.class_no : (targetClass || 4);
+    const actualNo = matched ? matched.student_no : (targetNo || 0);
 
     onLogin({
       role: 'parent',
-      name: `${studentName.trim()} 학부모`,
+      name: `${trimmedName} 학부모`,
       studentClass: actualClass,
       studentNo: actualNo,
-      studentName: studentName.trim(),
+      studentName: trimmedName,
     });
   };
 
-  // Handle Student Login
+  // Handle Student Login (비번 없이 학번(반·번호) + 이름으로 간편 로그인)
   const handleStudentLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentNo || !studentName) {
-      triggerToast('반, 번호, 이름을 입력해주세요.');
+    const trimmedName = studentName.trim();
+    if (!studentNo || !trimmedName) {
+      triggerToast('반, 번호, 이름을 모두 입력해주세요.');
       return;
     }
 
-    const matched = students.find(
-      (s) => s.class_no === Number(studentClass) && s.student_no === Number(studentNo) && s.name.trim() === studentName.trim()
+    const targetClass = Number(studentClass);
+    const targetNo = Number(studentNo);
+    const codeStr = `2${targetClass}${targetNo < 10 ? '0' + targetNo : targetNo}`;
+
+    const matched = students.find((s) => {
+      const matchName = s.name.trim() === trimmedName;
+      if (!matchName) return false;
+      if (s.class_no === targetClass && s.student_no === targetNo) return true;
+      if (s.code === codeStr) return true;
+      return false;
+    }) || students.find(
+      (s) => s.class_no === targetClass && s.name.trim() === trimmedName
+    ) || students.find(
+      (s) => s.name.trim() === trimmedName
     );
 
     if (matched) {
@@ -1926,15 +1953,15 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
       });
     } else {
       // Fallback for seamless demo
-      const fallbackId = Number(`2${studentClass}${Number(studentNo) < 10 ? '0' + studentNo : studentNo}`);
+      const fallbackId = Number(codeStr);
       onLogin({
         id: fallbackId,
         grade: 2,
-        class_no: Number(studentClass),
-        student_no: Number(studentNo),
-        name: studentName.trim(),
-        code: String(fallbackId),
-        bus_no: Number(studentClass),
+        class_no: targetClass,
+        student_no: targetNo,
+        name: trimmedName,
+        code: codeStr,
+        bus_no: targetClass,
         role: 'student',
         bus_status: false,
         room_status: false,
@@ -2102,20 +2129,43 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
         ) : loginMode === 'parent' ? (
           /* ============= PARENT LOGIN FORM ============= */
           <form onSubmit={handleParentLogin} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">자녀 학년/반 선택</label>
-              <select
-                value={studentClass}
-                onChange={(e) => setStudentClass(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400 text-white [&>option]:text-slate-900"
-              >
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <option key={n} value={n}>
-                    2학년 {n}반 {n === 4 ? '(시범 소통학급)' : ''}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <label className="font-bold text-slate-200">자녀 학번 (반 / 번호)</label>
+                <span className="text-[11px] text-pink-300 font-mono font-bold">
+                  {studentClass && studentNo ? `학번: 2${studentClass}${Number(studentNo) < 10 ? '0' + Number(studentNo) : studentNo}` : `2학년 ${studentClass}반`}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 block mb-1">반 선택</label>
+                  <select
+                    value={studentClass}
+                    onChange={(e) => setStudentClass(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400 text-white [&>option]:text-slate-900"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <option key={n} value={n}>
+                        2학년 {n}반 {n === 4 ? '(시범 소통학급)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 block mb-1">번호</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={studentNo}
+                    onChange={(e) => setStudentNo(e.target.value)}
+                    placeholder="예: 1"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400 font-bold"
+                  />
+                </div>
+              </div>
             </div>
+
             <div>
               <label className="text-xs font-bold text-slate-300 block mb-1">자녀 성명</label>
               <input
@@ -2125,27 +2175,19 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
                   const val = e.target.value;
                   setStudentName(val);
                   const st = students.find((s) => s.name.trim() === val.trim());
-                  if (st) setStudentClass(String(st.class_no));
+                  if (st) {
+                    setStudentClass(String(st.class_no));
+                    setStudentNo(String(st.student_no));
+                  }
                 }}
                 placeholder="예: 강승엽"
-                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400 font-bold"
               />
             </div>
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">
-                비밀번호 (자녀 생년월일 4자리)
-              </label>
-              <input
-                type="password"
-                maxLength={4}
-                value={studentBirth}
-                onChange={(e) => setStudentBirth(e.target.value)}
-                placeholder="예: 1014"
-                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-pink-400 font-mono tracking-widest"
-              />
-            </div>
-            <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-xs text-pink-200">
-              <span className="font-bold">안내:</span> 현재 2학년 4반 (이헤레나 선생님) 학급만 소통 기능을 시범 운영하고 있습니다.
+
+            <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-xs text-pink-200 flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-pink-400 shrink-0" />
+              <span>별도 비밀번호 없이 <b>자녀 학번(반·번호)과 이름</b>만으로 바로 접속됩니다.</span>
             </div>
 
             {/* Quick Demo Parent Picker */}
@@ -2156,25 +2198,17 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => {
-                    setStudentClass('4');
-                    setStudentName('강승엽');
-                    setStudentBirth('1014');
-                  }}
+                  onClick={() => fillStudent('4', '1', '강승엽')}
                   className="text-[10px] px-2.5 py-1.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-200 border border-pink-400/30 font-bold"
                 >
-                  🌸 4반 강승엽 학부모 (시범학급)
+                  🌸 4반 1번 강승엽 학부모 (시범학급)
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setStudentClass('1');
-                    setStudentName('김규빈');
-                    setStudentBirth('1014');
-                  }}
+                  onClick={() => fillStudent('1', '13', '김규빈')}
                   className="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 border border-white/20 font-medium"
                 >
-                  1반 김규빈 학부모
+                  1반 13번 김규빈 학부모
                 </button>
               </div>
             </div>
@@ -2189,58 +2223,88 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
         ) : (
           /* ============= STUDENT LOGIN FORM ============= */
           <form onSubmit={handleStudentLogin} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">반 선택</label>
-                <select
-                  value={studentClass}
-                  onChange={(e) => setStudentClass(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400 text-white [&>option]:text-slate-900"
-                >
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <option key={n} value={n}>
-                      2학년 {n}반
-                    </option>
-                  ))}
-                </select>
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <label className="font-bold text-slate-200">학번 (반 / 번호)</label>
+                <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                  {studentClass && studentNo ? `학번: 2${studentClass}${Number(studentNo) < 10 ? '0' + Number(studentNo) : studentNo}` : `2학년 ${studentClass}반`}
+                </span>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">번호</label>
-                <input
-                  type="number"
-                  value={studentNo}
-                  onChange={(e) => setStudentNo(e.target.value)}
-                  placeholder="예: 13"
-                  className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 block mb-1">반 선택</label>
+                  <select
+                    value={studentClass}
+                    onChange={(e) => setStudentClass(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400 text-white [&>option]:text-slate-900"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <option key={n} value={n}>
+                        2학년 {n}반
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 block mb-1">번호</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={studentNo}
+                    onChange={(e) => setStudentNo(e.target.value)}
+                    placeholder="예: 13"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400 font-bold"
+                  />
+                </div>
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">성명</label>
+              <label className="text-xs font-bold text-slate-300 block mb-1">성명 (이름)</label>
               <input
                 type="text"
                 value={studentName}
                 onChange={(e) => setStudentName(e.target.value)}
                 placeholder="예: 김규빈"
-                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400 font-bold"
               />
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">
-                비밀번호 (생년월일 4자리)
-              </label>
-              <input
-                type="password"
-                maxLength={4}
-                value={studentBirth}
-                onChange={(e) => setStudentBirth(e.target.value)}
-                placeholder="예: 1014"
-                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm focus:outline-hidden focus:border-emerald-400 font-mono tracking-widest"
-              />
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200 flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>별도 비밀번호 없이 <b>학번(반·번호)과 이름</b>만으로 즉시 로그인됩니다.</span>
             </div>
 
+            {/* Quick Demo Student Picker */}
+            <div className="pt-1 space-y-1.5">
+              <span className="text-[11px] text-emerald-300 font-bold block">
+                빠른 학생 선택 (원클릭 자동입력):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => fillStudent('4', '1', '강승엽')}
+                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 font-bold"
+                >
+                  🌿 2401 강승엽 (4반 1번)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillStudent('4', '7', '박경근')}
+                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 font-bold"
+                >
+                  🌿 2407 박경근 (4반 7번)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillStudent('1', '13', '김규빈')}
+                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 border border-white/20 font-medium"
+                >
+                  1반 13번 김규빈
+                </button>
+              </div>
+            </div>
 
             <button
               type="submit"
