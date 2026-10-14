@@ -521,25 +521,14 @@ export default function App() {
     triggerToast(nextStatus ? '탑승 완료 처리되었습니다!' : '탑승 상태가 취소되었습니다.');
   };
 
-  if (!currentUser) {
-    return (
-      <LoginScreen
-        onLogin={handleLogin}
-        teacherAuthCode={teacherAuthCode}
-        students={students}
-        triggerToast={triggerToast}
-      />
-    );
-  }
-
-  const isHead = currentUser.isHead;
-  const isStudent = currentUser.role === 'student';
-  const isParent = currentUser.role === 'parent';
-  const isTeacher = !isStudent && !isParent;
+  const isHead = Boolean(currentUser?.isHead);
+  const isStudent = currentUser?.role === 'student';
+  const isParent = currentUser?.role === 'parent';
+  const isTeacher = Boolean(currentUser && !isStudent && !isParent);
 
   // Find class teacher name for parent
   const parentTeacherInfo = isParent
-    ? TEACHERS.find((t) => t.classNo === (currentUser.studentClass || 4))
+    ? TEACHERS.find((t) => t.classNo === (currentUser?.studentClass || 4))
     : null;
   const parentTeacherName = parentTeacherInfo ? parentTeacherInfo.name : '담임';
 
@@ -555,8 +544,8 @@ export default function App() {
 
   const teacherNavItems = [
     { icon: <LayoutDashboard className="w-4 h-4" />, label: isHead ? '전체 현황 대시보드' : '내 학급 대시보드', tab: 'dashboard' },
-    { icon: <UserCheck className="w-4 h-4" />, label: isHead ? '전체 출석 및 탑승 관리' : `${currentUser.myClass}반 탑승 관리`, tab: 'attendance' },
-    { icon: <Hotel className="w-4 h-4 text-indigo-500" />, label: isHead ? '전체 숙소 방배치 관리' : `${currentUser.myClass}반 숙소 방배치 관리`, tab: 'rooms_management', badge: '호실배정' },
+    { icon: <UserCheck className="w-4 h-4" />, label: isHead ? '전체 출석 및 탑승 관리' : `${currentUser?.myClass || ''}반 탑승 관리`, tab: 'attendance' },
+    { icon: <Hotel className="w-4 h-4 text-indigo-500" />, label: isHead ? '전체 숙소 방배치 관리' : `${currentUser?.myClass || ''}반 숙소 방배치 관리`, tab: 'rooms_management', badge: '호실배정' },
     ...(isHead ? [{ icon: <UsersRound className="w-4 h-4" />, label: '전 학급 탑승 종합 관제', tab: 'classes', badge: '총괄' }] : []),
     { icon: <Sparkles className="w-4 h-4 text-amber-500" />, label: '돌발 퀴즈 & 사진 미션 관제', tab: 'activities_control', badge: '체육시스템이식' },
     { icon: <MessageSquareText className="w-4 h-4 text-pink-500" />, label: '학부모 소통 관리 (시범)', tab: 'parent_communication', badge: '신규' },
@@ -567,7 +556,7 @@ export default function App() {
   ];
 
   const parentNavItems = [
-    { icon: <MessageSquareText className="w-4 h-4" />, label: `${currentUser.studentClass}반 ${parentTeacherName} 선생님 학급 소통`, tab: 'communication', badge: '학부모' },
+    { icon: <MessageSquareText className="w-4 h-4" />, label: `${currentUser?.studentClass || 4}반 ${parentTeacherName} 선생님 학급 소통`, tab: 'communication', badge: '학부모' },
     { icon: <Hotel className="w-4 h-4 text-indigo-500" />, label: '자녀 숙소 방배치', tab: 'parent_rooms', badge: '호실' },
     { icon: <ShieldCheck className="w-4 h-4 text-emerald-600" />, label: '학생 안전교육 & 준비물', tab: 'safety', badge: '안심' },
     { icon: <CalendarRange className="w-4 h-4" />, label: '수학여행세부일정표', tab: 'schedule' },
@@ -599,6 +588,17 @@ export default function App() {
       triggerToast('담임선생님께서 해당 메뉴를 비공개 처리하셨습니다.');
     }
   }, [hiddenStudentMenus, isStudent, activeTab]);
+
+  if (!currentUser) {
+    return (
+      <LoginScreen
+        onLogin={handleLogin}
+        teacherAuthCode={teacherAuthCode}
+        students={students}
+        triggerToast={triggerToast}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f7f6f2] font-sans antialiased text-slate-900 overflow-x-hidden">
