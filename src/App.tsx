@@ -1843,12 +1843,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
   const [studentNo, setStudentNo] = useState('');
   const [studentName, setStudentName] = useState('');
 
-  const fillStudent = (c: string, no: string, name: string) => {
-    setStudentClass(c);
-    setStudentNo(no);
-    setStudentName(name);
-  };
-
   // Handle Teacher Login
   const handleTeacherLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2190,28 +2184,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
               <span>별도 비밀번호 없이 <b>자녀 학번(반·번호)과 이름</b>만으로 바로 접속됩니다.</span>
             </div>
 
-            {/* Quick Demo Parent Picker */}
-            <div className="pt-1 space-y-1.5">
-              <span className="text-[11px] text-pink-300 font-bold block">
-                빠른 체험 학부모 선택 (원클릭 자동입력):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fillStudent('4', '1', '강승엽')}
-                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-200 border border-pink-400/30 font-bold"
-                >
-                  🌸 4반 1번 강승엽 학부모 (시범학급)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillStudent('1', '13', '김규빈')}
-                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 border border-white/20 font-medium"
-                >
-                  1반 13번 김규빈 학부모
-                </button>
-              </div>
-            </div>
 
             <button
               type="submit"
@@ -2276,35 +2248,6 @@ const LoginScreen = ({ onLogin, teacherAuthCode, students, triggerToast }) => {
               <span>별도 비밀번호 없이 <b>학번(반·번호)과 이름</b>만으로 즉시 로그인됩니다.</span>
             </div>
 
-            {/* Quick Demo Student Picker */}
-            <div className="pt-1 space-y-1.5">
-              <span className="text-[11px] text-emerald-300 font-bold block">
-                빠른 학생 선택 (원클릭 자동입력):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fillStudent('4', '1', '강승엽')}
-                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 font-bold"
-                >
-                  🌿 2401 강승엽 (4반 1번)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillStudent('4', '7', '박경근')}
-                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 font-bold"
-                >
-                  🌿 2407 박경근 (4반 7번)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillStudent('1', '13', '김규빈')}
-                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 border border-white/20 font-medium"
-                >
-                  1반 13번 김규빈
-                </button>
-              </div>
-            </div>
 
             <button
               type="submit"
